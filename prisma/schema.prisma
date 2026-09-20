@@ -1,0 +1,221 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           BigInt   @id @default(autoincrement())
+  username     String   @unique @db.VarChar(64)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  name         String   @db.VarChar(64)
+  role         String   @default("editor") @db.VarChar(16) // admin / editor
+  status       Int      @default(1) @db.TinyInt // 1启用 0停用
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  sessions     Session[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @db.VarChar(64) // token
+  userId    BigInt   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model VideoGroup {
+  id          BigInt   @id @default(autoincrement())
+  name        String   @db.VarChar(128)
+  code        String   @unique @db.VarChar(16) // 对外短码 /v/{code}
+  cover       String?  @db.VarChar(255)
+  description String?  @db.VarChar(500)
+  password    String?  @db.VarChar(64)
+  status      Int      @default(1) @db.TinyInt // 1开放 0暂停
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  videos      Video[]
+
+  @@map("video_groups")
+}
+
+model Video {
+  id            BigInt   @id @default(autoincrement())
+  groupId       BigInt   @map("group_id")
+  group         VideoGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  title         String   @db.VarChar(255)
+  filePath      String   @map("file_path") @db.VarChar(255)
+  coverPath     String?  @map("cover_path") @db.VarChar(255)
+  duration      Int      @default(0) // 秒
+  fileSize      BigInt   @default(0) @map("file_size")
+  width         Int      @default(0)
+  height        Int      @default(0)
+  source        String   @default("upload") @db.VarChar(16) // upload/import/rescue
+  sourceUrl     String?  @map("source_url") @db.VarChar(500)
+  sort          Int      @default(0)
+  status        Int      @default(1) @db.TinyInt // 1上架 0下架
+  processStatus String   @default("pending") @map("process_status") @db.VarChar(16) // pending/processing/ready/failed
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([groupId])
+  @@map("videos")
+}
+
+model Vote {
+  id          BigInt   @id @default(autoincrement())
+  name        String   @db.VarChar(128)
+  cover       String?  @db.VarChar(255)
+  description String?  @db.VarChar(500)
+  wxAppid     String?  @map("wx_appid") @db.VarChar(64)
+  wxSecret    String?  @map("wx_secret") @db.VarChar(128)
+  status      String   @default("draft") @db.VarChar(16) // draft/active/finished/archived
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  rounds      VoteRound[]
+  contestants VoteContestant[]
+
+  @@map("votes")
+}
+
+model VoteRound {
+  id                 BigInt   @id @default(autoincrement())
+  voteId             BigInt   @map("vote_id")
+  vote               Vote     @relation(fields: [voteId], references: [id], onDelete: Cascade)
+  name               String   @db.VarChar(128)
+  seq                Int      @default(1)
+  status             String   @default("pending") @db.VarChar(16) // pending/active/paused/finished
+  code               String   @unique @db.VarChar(16) // 观众入口短码 /vote/{code}
+  audienceStartAt    DateTime? @map("audience_start_at")
+  audienceEndAt      DateTime? @map("audience_end_at")
+  screenShowResult   Int      @default(1) @map("screen_show_result") @db.TinyInt
+  screenShowPart     Int      @default(1) @map("screen_show_part") @db.TinyInt // 大屏显示参与率
+  audienceShowResult Int      @default(0) @map("audience_show_result") @db.TinyInt
+  screenGroupId      BigInt?  @map("screen_group_id") // 大屏当前群体，null=总分
+  screenQrMode       Int      @default(1) @map("screen_qr_mode") @db.TinyInt
+  countdownEndsAt    DateTime? @map("countdown_ends_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  groups             VoteGroup[]
+  roundContestants   RoundContestant[]
+
+  @@index([voteId])
+  @@map("vote_rounds")
+}
+
+model VoteContestant {
+  id        BigInt   @id @default(autoincrement())
+  voteId    BigInt   @map("vote_id")
+  vote      Vote     @relation(fields: [voteId], references: [id], onDelete: Cascade)
+  number    String   @db.VarChar(8)
+  name      String   @db.VarChar(128)
+  intro     String?  @db.VarChar(1000)
+  image     String?  @db.VarChar(255)
+  sort      Int      @default(0)
+  roundContestants RoundContestant[]
+
+  @@index([voteId])
+  @@map("vote_contestants")
+}
+
+model RoundContestant {
+  roundId      BigInt @map("round_id")
+  contestantId BigInt @map("contestant_id")
+  round        VoteRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  contestant   VoteContestant @relation(fields: [contestantId], references: [id], onDelete: Cascade)
+
+  @@id([roundId, contestantId])
+  @@map("round_contestants")
+}
+
+model VoteGroup {
+  id          BigInt   @id @default(autoincrement())
+  roundId     BigInt   @map("round_id")
+  round       VoteRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  name        String   @db.VarChar(64)
+  kind        String   @db.VarChar(8) // score / vote
+  weight      Decimal  @db.Decimal(5, 2)
+  maxScore    Int      @default(100) @map("max_score")
+  maxVotes    Int      @default(3) @map("max_votes")
+  allowRepeat Int      @default(0) @map("allow_repeat") @db.TinyInt
+  fixedPoints Decimal? @map("fixed_points") @db.Decimal(8, 2)
+  restricted  Int      @default(1) @db.TinyInt // 1限定名单 0开放扫码
+  sort        Int      @default(0)
+  voters      Voter[]
+  scoreEntries ScoreEntry[]
+  voteEntries VoteEntry[]
+  groupStats  GroupStat[]
+
+  @@index([roundId])
+  @@map("vote_groups")
+}
+
+model Voter {
+  id        BigInt   @id @default(autoincrement())
+  groupId   BigInt   @map("group_id")
+  group     VoteGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  name      String   @db.VarChar(64)
+  token     String   @unique @db.VarChar(64) // /judge/{token}
+  needBind  Int      @default(1) @map("need_bind") @db.TinyInt
+  boundKey  String?  @map("bound_key") @db.VarChar(128)
+  boundAt   DateTime? @map("bound_at")
+  hasVoted  Int      @default(0) @map("has_voted") @db.TinyInt
+  votedAt   DateTime? @map("voted_at")
+  scoreEntries ScoreEntry[]
+
+  @@index([groupId])
+  @@map("voters")
+}
+
+model ScoreEntry {
+  id           BigInt   @id @default(autoincrement())
+  groupId      BigInt   @map("group_id")
+  voterId      BigInt   @map("voter_id")
+  contestantId BigInt   @map("contestant_id")
+  score        Decimal  @db.Decimal(5, 2)
+  createdAt    DateTime @default(now()) @map("created_at")
+  group        VoteGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  voter        Voter     @relation(fields: [voterId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, voterId, contestantId])
+  @@map("score_entries")
+}
+
+model VoteEntry {
+  id           BigInt   @id @default(autoincrement())
+  groupId      BigInt   @map("group_id")
+  contestantId BigInt   @map("contestant_id")
+  voterKey     String   @map("voter_key") @db.VarChar(128)
+  ip           String?  @db.VarChar(45)
+  createdAt    DateTime @default(now()) @map("created_at")
+  group        VoteGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, voterKey])
+  @@map("vote_entries")
+}
+
+model GroupStat {
+  groupId      BigInt  @map("group_id")
+  contestantId BigInt  @map("contestant_id")
+  valueCache   Decimal @default(0) @map("value_cache") @db.Decimal(12, 2)
+  group        VoteGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, contestantId])
+  @@map("group_stats")
+}
+
+model Setting {
+  key       String   @id @db.VarChar(64)
+  value     String?  @db.Text
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
