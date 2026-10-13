@@ -141,7 +141,7 @@ export function ImagePicker({ value, onChange, label = "上传图片" }: { value
     <div className="flex items-center gap-3">
       {value ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={value.startsWith("/") ? `/api/media/${value}` : value} alt="" className="w-24 h-14 object-cover rounded-lg border border-ink-100" />
+        <img src={value.startsWith("http") ? value : `/api/media/${value}`} alt="" className="w-24 h-14 object-cover rounded-lg border border-ink-100" />
       ) : (
         <div className="w-24 h-14 rounded-lg bg-ink-100 flex items-center justify-center text-ink-300 text-xs">无图</div>
       )}
