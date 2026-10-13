@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { copyText } from "@/lib/clipboard";
 import { api } from "@/lib/client";
 import { Button, Card, Badge, Toggle, QrImage } from "@/components/ui";
 import { VoteDetail, ROUND_STATUS } from "./types";
@@ -163,12 +164,12 @@ export function ConsoleTab({ vote, reload }: { vote: VoteDetail; reload: () => v
         <div className="space-y-4">
           <div className="flex gap-2">
             <Button size="sm" onClick={() => window.open(screenUrl, "_blank")}>打开大屏页</Button>
-            <Button size="sm" variant="secondary" onClick={() => navigator.clipboard.writeText(screenUrl)}>复制大屏链接</Button>
+            <Button size="sm" variant="secondary" onClick={() => copyText(screenUrl)}>复制大屏链接</Button>
           </div>
           <div className="text-center bg-ink-50 rounded-xl p-5">
             <div className="inline-block"><QrImage text={audienceUrl} size={180} /></div>
             <p className="text-xs text-ink-300 mt-2">观众扫码入口</p>
-            <Button size="sm" variant="secondary" className="mt-3" onClick={() => navigator.clipboard.writeText(audienceUrl)}>复制观众链接</Button>
+            <Button size="sm" variant="secondary" className="mt-3" onClick={() => copyText(audienceUrl)}>复制观众链接</Button>
           </div>
           <MiniPreview roundId={round.id} />
         </div>

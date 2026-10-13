@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { copyText } from "@/lib/clipboard";
 import { api } from "@/lib/client";
 import { Button, Card, Badge, Field, Input, Toggle, Modal } from "@/components/ui";
 import { VoteDetail, RoundItem, ROUND_STATUS } from "./types";
@@ -160,10 +161,10 @@ function RoundEditor({ vote, round, reload, onStatus }: {
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
           <span className="text-ink-500">观众入口：</span>
-          <button className="text-brand hover:underline" onClick={() => navigator.clipboard.writeText(audienceUrl)}>{audienceUrl}（复制）</button>
+          <button className="text-brand hover:underline" onClick={() => copyText(audienceUrl)}>{audienceUrl}（复制）</button>
           <span className="text-ink-300">|</span>
           <span className="text-ink-500">大屏：</span>
-          <button className="text-brand hover:underline" onClick={() => navigator.clipboard.writeText(screenUrl)}>{screenUrl}（复制）</button>
+          <button className="text-brand hover:underline" onClick={() => copyText(screenUrl)}>{screenUrl}（复制）</button>
         </div>
       </Card>
 

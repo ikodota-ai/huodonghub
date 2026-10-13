@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { copyText } from "@/lib/clipboard";
 import { api } from "@/lib/client";
 import { Button, Card, Badge, Modal, Field, Empty, QrImage, Toggle } from "@/components/ui";
 import { VoteDetail } from "./types";
@@ -99,7 +100,7 @@ export function VotersTab({ vote }: { vote: VoteDetail }) {
                     {v.hasVoted === 1 ? <Badge tone="blue">已提交</Badge> : <Badge>未提交</Badge>}
                   </td>
                   <td className="px-3 py-3 text-right">
-                    <Button variant="ghost" size="sm" onClick={() => navigator.clipboard.writeText(`${location.origin}/judge/${v.token}`)}>复制链接</Button>
+                    <Button variant="ghost" size="sm" onClick={() => copyText(`${location.origin}/judge/${v.token}`)}>复制链接</Button>
                     <Button variant="ghost" size="sm" onClick={() => resetVoter(v)}>重置</Button>
                     <Button variant="ghost" size="sm" className="hover:text-red-500" onClick={() => del(v)}>删除</Button>
                   </td>

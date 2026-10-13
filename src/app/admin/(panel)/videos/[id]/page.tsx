@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { copyText } from "@/lib/clipboard";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api, fmtBytes, fmtDuration } from "@/lib/client";
@@ -443,9 +444,9 @@ function ShareTab({ group, reload }: { group: GroupDetail; reload: () => void })
         <div className="flex-1">
           <Field label="合集链接"><Input readOnly value={url} onFocus={(e) => e.target.select()} /></Field>
           <div className="flex flex-wrap gap-2 mb-5">
-            <Button variant="secondary" size="sm" onClick={() => navigator.clipboard.writeText(url)}>复制链接</Button>
+            <Button variant="secondary" size="sm" onClick={() => copyText(url)}>复制链接</Button>
             <Button variant="secondary" size="sm" onClick={() => import("qrcode").then((Q) => Q.toDataURL(url, { width: 800, margin: 1 })).then((u) => download(`${group.name}-二维码.png`, u))}>下载二维码</Button>
-            <Button variant="secondary" size="sm" onClick={() => navigator.clipboard.writeText(`【${group.name}】共 ${group.videos.length} 个视频，点击观看：${url}`)}>复制转发文案</Button>
+            <Button variant="secondary" size="sm" onClick={() => copyText(`【${group.name}】共 ${group.videos.length} 个视频，点击观看：${url}`)}>复制转发文案</Button>
           </div>
           <div className="flex items-center gap-3 py-3 border-t border-ink-100">
             <span className="text-sm text-ink-700">分组开放</span>

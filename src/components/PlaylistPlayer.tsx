@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { copyText } from "@/lib/clipboard";
 import { isWeChat } from "./public-widgets";
 
 export interface PlaylistItem {
@@ -74,7 +75,7 @@ export function PlaylistPlayer({ items, startId, groupName, groupHref }: {
                 {current.sourceUrl && (
                   <button
                     className="mt-3 text-white/70 text-xs border border-white/30 px-4 py-1.5 rounded-full active:opacity-70"
-                    onClick={() => navigator.clipboard.writeText(current.sourceUrl!)}
+                    onClick={() => copyText(current.sourceUrl!)}
                   >复制视频号链接</button>
                 )}
               </>

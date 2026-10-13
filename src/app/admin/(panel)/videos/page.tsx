@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { copyText } from "@/lib/clipboard";
 import Link from "next/link";
 import { api } from "@/lib/client";
 import { Button, Card, Modal, Field, Input, Textarea, Toggle, Badge, Empty, Skeleton, QrImage, download } from "@/components/ui";
@@ -102,7 +103,7 @@ export default function VideosPage() {
             <div className="inline-block"><QrImage text={`${location.origin}/v/${share.code}`} size={220} /></div>
             <p className="text-sm text-ink-500 mt-4 break-all">{`${location.origin}/v/${share.code}`}</p>
             <div className="flex justify-center gap-2 mt-4">
-              <Button variant="secondary" size="sm" onClick={() => navigator.clipboard.writeText(`${location.origin}/v/${share.code}`)}>复制链接</Button>
+              <Button variant="secondary" size="sm" onClick={() => copyText(`${location.origin}/v/${share.code}`)}>复制链接</Button>
               <Button variant="secondary" size="sm" onClick={() => import("qrcode").then((Q) => Q.toDataURL(`${location.origin}/v/${share.code}`, { width: 800, margin: 1 })).then((u) => download(`${share.name}-二维码.png`, u))}>下载二维码</Button>
             </div>
           </div>

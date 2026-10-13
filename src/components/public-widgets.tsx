@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { copyText } from "@/lib/clipboard";
 import { useRouter } from "next/navigation";
 import { Button, Input, Modal, QrImage } from "./ui";
 
@@ -50,7 +51,7 @@ export function GroupShareButton({ name, count }: { name: string; count: number 
         <div className="text-center">
           <div className="inline-block"><QrImage text={url} size={200} /></div>
           <p className="text-xs text-ink-300 mt-3 break-all">{url}</p>
-          <Button variant="secondary" size="sm" className="mt-4" onClick={() => navigator.clipboard.writeText(`【${name}】共 ${count} 个视频，点击观看：${url}`)}>复制转发文案</Button>
+          <Button variant="secondary" size="sm" className="mt-4" onClick={() => copyText(`【${name}】共 ${count} 个视频，点击观看：${url}`)}>复制转发文案</Button>
         </div>
       </Modal>
     </>
