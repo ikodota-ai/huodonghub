@@ -47,7 +47,14 @@
    tar -xJf /tmp/ffmpeg-static.tar.xz -C /usr/local/bin --strip-components=1 --wildcards '*/ffmpeg' '*/ffprobe'
    ffmpeg -version | head -1 && ffprobe -version | head -1
    ```
-5. **内存 <2G 的服务器**：装「Linux 工具箱」→ 加 2G swap（否则第 4 步构建会内存不足被杀）。
+5. **内存 ≤2G 的服务器必须加 swap**（不加的话，第五节 `npm run build` 大概率内存不足被系统杀掉；而且杀在半路会把线上搞坏，见坑位速查表倒数第 2 行）。先 `free -h` 看 Swap 行，为 0 就加 2G swap（一次性，永久生效）：
+   ```bash
+   dd if=/dev/zero of=/swapfile bs=1M count=2048
+   chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+   echo '/swapfile swap swap defaults 0 0' >> /etc/fstab
+   free -h    # 确认 Swap 行约 2.0G
+   ```
+   （宝塔「Linux 工具箱」插件里也有 swap 开关，效果一样。磁盘紧张先 `df -h /` 确认剩余 >3G。）
 
 ## 二、建数据库（数据库 → 添加数据库）
 
@@ -326,7 +333,7 @@ server
 ```bash
 cd /www/wwwroot/huodongpeitai && bash scripts/deploy.sh
 ```
-（拉代码 → 装依赖 → 迁移 → 构建 → PM2 重启，全自动）
+（拉代码 → 装依赖 → 迁移 → 构建 → PM2 重启，全自动。构建在影子目录 `.next-build` 进行，成功后才切换替换 `.next`——构建中途失败/被杀只会丢弃半成品，线上继续跑旧版本，不会出现页面空白。）
 
 ## 宝塔特有坑位速查
 
@@ -336,7 +343,8 @@ cd /www/wwwroot/huodongpeitai && bash scripts/deploy.sh
 | npm 装包 404（registry 是 `.../nodejs-release`） | 前人把 registry 错配成 Node 二进制镜像 → `npm config set registry https://registry.npmmirror.com` |
 | 申请 SSL 报「未找到标识信息 #error_page 404/404.html;」 | 手工配置缺宝塔锚点 → 按第八节第 1 步插入空 CERT-APPLY-CHECK / SSL-START 标记段后重新申请 |
 | 终端 `node: command not found` | PM2 管理器里没选 Node 版本；重开终端让它注入 PATH |
-| 构建卡住/被杀 | 内存不足 → Linux 工具箱加 2G swap |
+| 构建卡住/被杀（"已杀死/Killed"，多在 Collecting build traces 阶段） | 内存不足被系统 OOM 杀掉 → 按第一节第 5 步加 2G swap 后重跑 |
+| 后台部分页面空白，控制台 `_next/static/chunks/*.js` 报 400 或 ChunkLoadError（常在重新部署/改 HTTPS 后发现） | 上次构建中途被杀，`.next` 是半成品而 pm2 还在跑旧构建（新旧 chunk 对不上）→ 加 swap 后重跑 `bash scripts/deploy.sh`；新版影子构建已从根上杜绝此状态 |
 | 备份脚本报 mysqldump not found | 已修复（脚本内置宝塔路径）；确认 MySQL 是宝塔装的 |
 | 视频能播不能拖/大流量卡 | 走了 Node 而非 Nginx 直发 → 检查第七步 `alias` 路径末尾的 `/` |
 | 大屏数字不实时跳 | `/api/screen/` 没关 `proxy_buffering` → 对照第七步配置 |

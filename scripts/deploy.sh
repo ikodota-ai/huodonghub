@@ -16,8 +16,13 @@ echo "==> 3/5 数据库迁移"
 npx prisma migrate deploy
 npx prisma generate
 
-echo "==> 4/5 构建"
-npm run build
+echo "==> 4/5 构建（影子目录，成功后才切换，构建失败不影响线上）"
+rm -rf .next-build
+BUILD_DIST_DIR=.next-build npm run build
+rm -rf .next.old
+[ -d .next ] && mv .next .next.old
+mv .next-build .next
+rm -rf .next.old
 
 echo "==> 5/5 重启服务"
 if pm2 describe huodongpeitai >/dev/null 2>&1; then
