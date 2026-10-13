@@ -82,6 +82,8 @@ function VideosTab({ group, reload, totalBytes }: { group: GroupDetail; reload: 
   const [rename, setRename] = useState<Video | null>(null);
   const [title, setTitle] = useState("");
   const [playing, setPlaying] = useState<Video | null>(null);
+  const [coverFor, setCoverFor] = useState<Video | null>(null);
+  const [coverPath, setCoverPath] = useState<string | null>(null);
 
   async function setStatus(v: Video, status: number) {
     await api(`/api/videos/${v.id}`, { method: "PUT", body: JSON.stringify({ status }) });
@@ -157,6 +159,7 @@ function VideosTab({ group, reload, totalBytes }: { group: GroupDetail; reload: 
                   <Button variant="ghost" size="sm" onClick={() => move(v, 1)}>↓</Button>
                   {v.processStatus === "failed" && <Button variant="ghost" size="sm" onClick={() => retry(v)}>重试</Button>}
                   <Button variant="ghost" size="sm" onClick={() => { setRename(v); setTitle(v.title); }}>改名</Button>
+                  <Button variant="ghost" size="sm" onClick={() => { setCoverFor(v); setCoverPath(v.coverPath); }}>封面</Button>
                   <Button variant="ghost" size="sm" onClick={() => setStatus(v, v.status === 1 ? 0 : 1)}>{v.status === 1 ? "下架" : "上架"}</Button>
                   <Button variant="ghost" size="sm" className="hover:text-red-500" onClick={() => del(v)}>删除</Button>
                 </div>
@@ -173,6 +176,19 @@ function VideosTab({ group, reload, totalBytes }: { group: GroupDetail; reload: 
           <Button disabled={!title} onClick={async () => {
             await api(`/api/videos/${rename!.id}`, { method: "PUT", body: JSON.stringify({ title }) });
             setRename(null);
+            reload();
+          }}>保存</Button>
+        </div>
+      </Modal>
+
+      <Modal open={!!coverFor} onClose={() => setCoverFor(null)} title={`设置封面：${coverFor?.title ?? ""}`}>
+        <p className="text-xs text-ink-300 mb-3">转码截图失败或想换成自定义封面时使用；建议 16:9 图片，立即生效。</p>
+        <ImagePicker value={coverPath} onChange={(p) => setCoverPath(p)} label={coverPath ? "更换图片" : "上传封面"} />
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="secondary" onClick={() => setCoverFor(null)}>取消</Button>
+          <Button disabled={!coverPath} onClick={async () => {
+            await api(`/api/videos/${coverFor!.id}`, { method: "PUT", body: JSON.stringify({ coverPath }) });
+            setCoverFor(null);
             reload();
           }}>保存</Button>
         </div>

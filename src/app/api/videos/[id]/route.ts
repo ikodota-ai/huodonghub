@@ -9,6 +9,7 @@ type Ctx = { params: { id: string } };
 const updateSchema = z.object({
   title: z.string().min(1).max(255).optional(),
   status: z.number().int().min(0).max(1).optional(),
+  coverPath: z.string().max(255).nullable().optional(),
 });
 
 export async function PUT(req: Request, { params }: Ctx) {
