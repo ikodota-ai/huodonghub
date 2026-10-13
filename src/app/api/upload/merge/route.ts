@@ -34,7 +34,10 @@ export async function POST(req: Request) {
     const out = fs.createWriteStream(alloc.absPath);
     for (let i = 0; i < up.chunks; i++) {
       const chunkPath = path.join(up.dir, String(i));
-      out.write(fs.readFileSync(chunkPath));
+      // 等 drain 再写下一片：否则大文件在内存排队，把进程内存顶爆触发 pm2 重启
+      if (!out.write(fs.readFileSync(chunkPath))) {
+        await new Promise<void>((resolve) => out.once("drain", resolve));
+      }
     }
     out.end();
     await new Promise<void>((resolve) => out.on("finish", resolve));

@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { ok, fail, handleError } from "@/lib/api";
 import { TMP_ROOT } from "@/lib/storage";
 import { token } from "@/lib/codes";
-import { uploadSessions } from "@/lib/uploads";
+import { uploadSessions, saveUploadMeta, sweepStaleUploads } from "@/lib/uploads";
 import fs from "fs";
 import path from "path";
 
@@ -26,7 +26,10 @@ export async function POST(req: Request) {
     const id = token(12);
     const dir = path.join(TMP_ROOT, id);
     fs.mkdirSync(dir, { recursive: true });
-    uploadSessions.set(id, { filename, size, chunks, received: new Set(), dir });
+    const session = { filename, size, chunks, received: new Set<number>(), dir };
+    uploadSessions.set(id, session);
+    saveUploadMeta(session);   // 落盘：进程重启后 getUpload 可从磁盘恢复
+    sweepStaleUploads();       // 顺带清理 24h 前的孤儿上传目录
     return ok({ uploadId: id });
   } catch (e) {
     return handleError(e);
