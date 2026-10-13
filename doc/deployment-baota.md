@@ -339,6 +339,7 @@ cd /www/wwwroot/huodongpeitai && bash scripts/deploy.sh
 
 | 现象 | 原因/解法 |
 |---|---|
+| 系统盘 97% 满（构建/上传没空间），数据盘 `/data` 空着 | **不要整体搬 /www**（/www/server 是宝塔+MySQL 本体）→ 用 bind mount 只迁 `wwwroot`/`wwwlogs` 到数据盘，见文末"附录 A" |
 | PM2 管理器"服务器版本过低"最高只有 v16/v17 | 老系统 glibc 2.17；Next.js 14 需 ≥18.17 → 按第一节"情况 2"手动装 glibc-217 版 Node 20，守护用命令行 pm2 |
 | npm 装包 404（registry 是 `.../nodejs-release`） | 前人把 registry 错配成 Node 二进制镜像 → `npm config set registry https://registry.npmmirror.com` |
 | 申请 SSL 报「未找到标识信息 #error_page 404/404.html;」 | 手工配置缺宝塔锚点 → 按第八节第 1 步插入空 CERT-APPLY-CHECK / SSL-START 标记段后重新申请 |
@@ -351,3 +352,29 @@ cd /www/wwwroot/huodongpeitai && bash scripts/deploy.sh
 | 大屏数字不实时跳 | `/api/screen/` 没关 `proxy_buffering` → 对照第七步配置 |
 | 上传 413 | `client_max_body_size` 没生效（443 段忘了复制） |
 | 宝塔"网站加速"类插件 | 别开，会把 SSE 和大屏页面缓存坏 |
+
+## 附录 A：系统盘满，把 wwwroot 迁到数据盘（bind mount 法，可回滚）
+
+原则：只迁 `wwwroot`、`wwwlogs`（占空间大头）；`/www/server`（宝塔/MySQL 本体）原地不动。用 bind mount 而非软链——PHP open_basedir 会解析软链真实路径导致"防跨站攻击"误伤，bind mount 对所有程序透明、零配置改动。全程复制不删除，验证后再清理：
+
+```bash
+which rsync || yum install -y rsync
+mkdir -p /data/wwwroot /data/wwwlogs
+rsync -avP /www/wwwroot/ /data/wwwroot/          # 第一遍（不停站）
+rsync -avP /www/wwwlogs/ /data/wwwlogs/
+pm2 stop huodongpeitai && systemctl stop nginx   # 停站 1~2 分钟
+rsync -avP --delete /www/wwwroot/ /data/wwwroot/ # 第二遍增量（快）
+rsync -avP --delete /www/wwwlogs/ /data/wwwlogs/
+find /www/wwwroot -type f | wc -l                # 与下一行数字一致才继续
+find /data/wwwroot -type f | wc -l
+mv /www/wwwroot /www/wwwroot.bak && mkdir /www/wwwroot
+mv /www/wwwlogs /www/wwwlogs.bak && mkdir /www/wwwlogs
+mount --bind /data/wwwroot /www/wwwroot
+mount --bind /data/wwwlogs /www/wwwlogs
+printf '/data/wwwroot /www/wwwroot none bind 0 0\n/data/wwwlogs /www/wwwlogs none bind 0 0\n' >> /etc/fstab
+systemctl start nginx && pm2 restart huodongpeitai
+# 验证各网站/后台/视频播放正常后再释放空间：
+# rm -rf /www/wwwroot.bak /www/wwwlogs.bak && df -h /
+```
+
+回滚：`umount /www/wwwroot /www/wwwlogs` → `.bak` 改回原名 → 重启 nginx。
