@@ -375,7 +375,11 @@ mount --bind /data/wwwlogs /www/wwwlogs
 printf '/data/wwwroot /www/wwwroot none bind 0 0\n/data/wwwlogs /www/wwwlogs none bind 0 0\n' >> /etc/fstab
 /etc/init.d/nginx start && pm2 restart huodongpeitai
 # 验证各网站/后台/视频播放正常后再释放空间：
+# （.user.ini 有 chattr +i 锁，需先解锁）
+# find /www/wwwroot.bak -name ".user.ini" -exec chattr -i {} +
 # rm -rf /www/wwwroot.bak /www/wwwlogs.bak && df -h /
 ```
 
 回滚：`umount /www/wwwroot /www/wwwlogs` → `.bak` 改回原名 → 重启 nginx。
+
+注意：rsync 不复制 immutable 属性，迁移后线上 `.user.ini` 会失去宝塔的防篡改锁，建议补回：`find /www/wwwroot -name ".user.ini" -exec chattr +i {} +`
