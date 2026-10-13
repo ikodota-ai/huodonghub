@@ -6,6 +6,7 @@ import Link from "next/link";
 import { api, fmtBytes, fmtDuration } from "@/lib/client";
 import { Button, Card, Tabs, Badge, Modal, Field, Input, Textarea, Toggle, Skeleton, QrImage, download, Empty } from "@/components/ui";
 import { Uploader, ImagePicker } from "@/components/Uploader";
+import { cnNumber, episodeTitle } from "@/lib/cn-number";
 
 interface Video {
   id: string; title: string; duration: number; fileSize: string; coverPath: string | null; filePath: string;
@@ -109,8 +110,15 @@ function VideosTab({ group, reload, totalBytes }: { group: GroupDetail; reload: 
         <Uploader groupId={group.id} onDone={reload} />
       </Card>
       <Card>
-        <div className="px-5 py-3 border-b border-ink-100 text-sm text-ink-500">
-          共 {group.videos.length} 个 · {fmtBytes(totalBytes)}
+        <div className="px-5 py-3 border-b border-ink-100 text-sm text-ink-500 flex items-center justify-between">
+          <span>共 {group.videos.length} 个 · {fmtBytes(totalBytes)}</span>
+          {group.videos.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={async () => {
+              if (!confirm(`将按当前顺序把全部 ${group.videos.length} 个视频重命名为「第N集 标题」（已有的集数前缀会被替换，标题其余部分保留）。确定？`)) return;
+              await api("/api/videos/renumber", { method: "POST", body: JSON.stringify({ groupId: group.id }) });
+              reload();
+            }}>按顺序编集数</Button>
+          )}
         </div>
         {group.videos.length === 0 ? (
           <Empty text="还没有视频，先上传一个" />
@@ -264,17 +272,46 @@ function ImportTab({ groupId, reload }: { groupId: string; reload: () => void })
 }
 
 function ExternalTab({ groupId, reload }: { groupId: string; reload: () => void }) {
+  const [mode, setMode] = useState<"single" | "batch">("single");
   const [title, setTitle] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [cover, setCover] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [batchText, setBatchText] = useState("");
+  const [batchTitle, setBatchTitle] = useState("");
+  const [startNo, setStartNo] = useState(1);
 
   async function submit() {
     setSaving(true);
     try {
-      await api("/api/videos", { method: "POST", body: JSON.stringify({ groupId, title, sourceUrl, coverPath: cover }) });
+      await api("/api/videos", { method: "POST", body: JSON.stringify({ groupId, items: [{ title, sourceUrl, coverPath: cover }] }) });
       setTitle(""); setSourceUrl(""); setCover(null);
       reload();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "保存失败");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submitBatch() {
+    const lines = batchText.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) { alert("请粘贴链接，每行一条"); return; }
+    const items: { title: string; sourceUrl: string }[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(/^(\S+)(?:\s+(.+))?$/);
+      const url = m?.[1] ?? "";
+      if (!url.includes("weixin.qq.com/sph/")) { alert(`第 ${i + 1} 行不是视频号链接`); return; }
+      const t = (m?.[2] ?? batchTitle).trim();
+      if (!t) { alert(`第 ${i + 1} 行缺少标题（可在上方填统一标题）`); return; }
+      items.push({ title: episodeTitle(startNo + i, t), sourceUrl: url });
+    }
+    setSaving(true);
+    try {
+      await api<{ count: number }>("/api/videos", { method: "POST", body: JSON.stringify({ groupId, items }) });
+      setBatchText(""); setBatchTitle(""); setStartNo(1);
+      reload();
+      alert(`已添加 ${items.length} 个条目`);
     } catch (e) {
       alert(e instanceof Error ? e.message : "保存失败");
     } finally {
@@ -304,19 +341,50 @@ function ExternalTab({ groupId, reload }: { groupId: string; reload: () => void 
         </div>
       </Card>
       <Card className="p-5">
-        <h3 className="font-semibold mb-3">添加外链条目</h3>
-        <Field label="条目标题" required>
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="客户看到的标题" />
-        </Field>
-        <Field label="视频号链接" required>
-          <Input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://weixin.qq.com/sph/..." />
-        </Field>
-        <Field label="封面图（选填，建议上传；视频号封面地址带时效签名不能直接存）">
-          <ImagePicker value={cover} onChange={(path) => setCover(path)} label="上传封面" />
-        </Field>
-        <Button onClick={submit} disabled={saving || !title.trim() || !sourceUrl.includes("weixin.qq.com/sph/")}>
-          {saving ? "保存中…" : "添加到分组"}
-        </Button>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold">添加外链条目</h3>
+          <div className="flex rounded-lg border border-ink-200 overflow-hidden text-sm">
+            {(["single", "batch"] as const).map((m) => (
+              <button key={m} onClick={() => setMode(m)}
+                className={`px-3 py-1 ${mode === m ? "bg-brand text-white" : "bg-white text-ink-500"}`}>
+                {m === "single" ? "单条" : "批量"}
+              </button>
+            ))}
+          </div>
+        </div>
+        {mode === "single" ? (
+          <>
+            <Field label="条目标题" required>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="客户看到的标题" />
+            </Field>
+            <Field label="视频号链接" required>
+              <Input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://weixin.qq.com/sph/..." />
+            </Field>
+            <Field label="封面图（选填，建议上传；视频号封面地址带时效签名不能直接存）">
+              <ImagePicker value={cover} onChange={(path) => setCover(path)} label="上传封面" />
+            </Field>
+            <Button onClick={submit} disabled={saving || !title.trim() || !sourceUrl.includes("weixin.qq.com/sph/")}>
+              {saving ? "保存中…" : "添加到分组"}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Field label="统一标题（选填；各行也可在链接后单独写标题）">
+              <Input value={batchTitle} onChange={(e) => setBatchTitle(e.target.value)} placeholder="如：客户答谢会" />
+            </Field>
+            <Field label="起始集数（自动生成「第N集」前缀）">
+              <Input type="number" min={1} max={99} value={startNo} onChange={(e) => setStartNo(Math.max(1, Number(e.target.value) || 1))} />
+            </Field>
+            <Field label="链接列表（每行一条；可在链接后空格接该集标题）" required>
+              <Textarea rows={7} value={batchText} onChange={(e) => setBatchText(e.target.value)}
+                placeholder={"https://weixin.qq.com/sph/aaa 开幕式\nhttps://weixin.qq.com/sph/bbb 领导致辞\nhttps://weixin.qq.com/sph/ccc"} />
+            </Field>
+            <p className="text-xs text-ink-300 mb-3">将生成「第{cnNumber(startNo)}集 …」起连续编号的 {batchText.split("\n").filter((l) => l.trim()).length} 个条目；批量模式不含封面（集合页显示灰色占位图）。</p>
+            <Button onClick={submitBatch} disabled={saving || !batchText.trim()}>
+              {saving ? "保存中…" : "批量添加"}
+            </Button>
+          </>
+        )}
       </Card>
     </div>
   );
