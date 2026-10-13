@@ -20,11 +20,32 @@
 
 1. **Nginx**：装（一般已有）。
 2. **MySQL 5.7**：装。若服务器已是 MySQL 8.0 也能跑（本项目未用 8.0 专有语法），不必降级。
-3. **PM2 管理器**：装，Node 版本选 **20.x**。装完后「终端」里 `node -v` 应显示 v20.x。
+3. **Node ≥ 18.17（Next.js 14 硬性要求）+ pm2**，分两情况：
+   - **正常情况**：软件商店装「PM2 管理器」，Node 版本选 20.x，「终端」里 `node -v` 显示 v20.x 即可。
+   - **PM2 管理器提示"服务器版本过低"、最高只能装 v16/v17 测试版**（老系统如 CentOS 7，glibc 2.17，跑不了 Node 18+ 官方二进制）：**跳过 PM2 管理器插件**，终端手动装 glibc-217 专用构建的 Node 20（2026-10 实测最新 v20.20.2，新版可看 https://unofficial-builds.nodejs.org/download/release/ ）：
+     ```bash
+     yum install -y xz   # 解压 .tar.xz 需要（Debian/Ubuntu: apt install -y xz-utils）
+     cd /tmp
+     curl -fLO https://unofficial-builds.nodejs.org/download/release/v20.20.2/node-v20.20.2-linux-x64-glibc-217.tar.xz
+     mkdir -p /www/server/nodejs20
+     tar -xJf node-v20.20.2-linux-x64-glibc-217.tar.xz -C /www/server/nodejs20 --strip-components=1
+     ln -sf /www/server/nodejs20/bin/node /usr/local/bin/node
+     ln -sf /www/server/nodejs20/bin/npm  /usr/local/bin/npm
+     ln -sf /www/server/nodejs20/bin/npx  /usr/local/bin/npx
+     node -v    # 必须输出 v20.20.2；若报 GLIBC_2.28 not found 说明下错版本
+     npm i -g pm2 && pm2 -v
+     ```
+     此情况下进程守护也不用面板，按第六节"命令行 pm2"操作。
 4. **ffmpeg**：软件商店没有，在终端装：
    ```bash
    yum install -y ffmpeg      # CentOS/Alibaba Linux；或 apt install -y ffmpeg（Debian/Ubuntu）
    ffmpeg -version | head -1  # 确认
+   ```
+   CentOS 7 默认源没有 ffmpeg，报"No package available"就用静态构建（老系统可跑）：
+   ```bash
+   cd /usr/local && curl -fLO https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
+   tar -xJf ffmpeg-release-amd64-static.tar.xz --strip-components=1 --wildcards '*/ffmpeg' '*/ffprobe'
+   ffmpeg -version | head -1
    ```
 5. **内存 <2G 的服务器**：装「Linux 工具箱」→ 加 2G swap（否则第 4 步构建会内存不足被杀）。
 
@@ -69,8 +90,10 @@ npm run build                 # 2~5 分钟，内存不足被杀就回去加 swap
 mkdir -p media logs
 ```
 
-## 六、PM2 管理器守护进程（软件商店 → PM2 管理器 → 添加项目）
+## 六、进程守护（按第一节的情况二选一）
 
+**情况 1：PM2 管理器面板（插件装上了 Node 20 时）**
+软件商店 → PM2 管理器 → 添加项目：
 | 字段 | 值 |
 |---|---|
 | 项目名称 | `huodongpeitai` |
@@ -81,6 +104,16 @@ mkdir -p media logs
 | 开机启动 | 勾选 |
 
 添加后确认状态 online；终端 `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/admin/login` 应返回 200。
+
+**情况 2：命令行 pm2（老系统手动装的 Node 20 时）**
+```bash
+cd /www/wwwroot/huodongpeitai
+sed -i 's#cwd: "/www/huodongpeitai"#cwd: "/www/wwwroot/huodongpeitai"#' deploy/ecosystem.config.js
+pm2 start deploy/ecosystem.config.js
+pm2 save && pm2 startup   # 按它输出的提示再复制执行一条命令（注册 systemd 开机自启）
+pm2 logs huodongpeitai --lines 30   # 确认 Ready，无报错
+```
+终端 `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/admin/login` 应返回 200。
 
 ## 七、网站反代（关键，别用"反向代理"按钮，直接整份替换配置文件）
 
@@ -195,6 +228,7 @@ cd /www/wwwroot/huodongpeitai && bash scripts/deploy.sh
 
 | 现象 | 原因/解法 |
 |---|---|
+| PM2 管理器"服务器版本过低"最高只有 v16/v17 | 老系统 glibc 2.17；Next.js 14 需 ≥18.17 → 按第一节"情况 2"手动装 glibc-217 版 Node 20，守护用命令行 pm2 |
 | 终端 `node: command not found` | PM2 管理器里没选 Node 版本；重开终端让它注入 PATH |
 | 构建卡住/被杀 | 内存不足 → Linux 工具箱加 2G swap |
 | 备份脚本报 mysqldump not found | 已修复（脚本内置宝塔路径）；确认 MySQL 是宝塔装的 |
