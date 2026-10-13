@@ -43,9 +43,9 @@
    ```
    CentOS 7 默认源没有 ffmpeg，报"No package available"就用静态构建（老系统可跑）：
    ```bash
-   cd /usr/local && curl -fLO https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
-   tar -xJf ffmpeg-release-amd64-static.tar.xz --strip-components=1 --wildcards '*/ffmpeg' '*/ffprobe'
-   ffmpeg -version | head -1
+   curl -fLO https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz -o /tmp/ffmpeg-static.tar.xz
+   tar -xJf /tmp/ffmpeg-static.tar.xz -C /usr/local/bin --strip-components=1 --wildcards '*/ffmpeg' '*/ffprobe'
+   ffmpeg -version | head -1 && ffprobe -version | head -1
    ```
 5. **内存 <2G 的服务器**：装「Linux 工具箱」→ 加 2G swap（否则第 4 步构建会内存不足被杀）。
 
