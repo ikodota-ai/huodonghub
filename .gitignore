@@ -39,3 +39,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 /logs
+
+# 本地构建上传部署（scripts/package-build.sh 产物）
+/.next-build/
+/deploy-next-build.tar.gz
