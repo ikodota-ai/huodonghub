@@ -197,6 +197,17 @@ server {
 ## 八、HTTPS（网站 → 设置 → SSL）
 
 1. **保持第七步的 80 配置不动**，Let's Encrypt → 勾选域名 → 申请（域名 DNS 须已解析到本服务器）。
+   - **若宝塔报错「未找到标识信息 #error_page 404/404.html;，无法确定SSL配置添加位置」**：手工配置缺少宝塔锚点。在 server 块内 `server_name` 行之后插入以下空标记段，保存后重新申请：
+     ```nginx
+     #CERT-APPLY-CHECK--START
+     # 用于SSL证书申请时的文件验证相关配置 -- 请勿删除
+     #CERT-APPLY-CHECK--END
+
+     #SSL-START SSL相关配置，请勿删除或修改下一行带注释的404规则
+     #error_page 404/404.html;
+     #SSL-END
+     ```
+     宝塔申请时就会在两段标记之间插入 listen 443 与证书行（我们的 location 块不受影响）。
 2. 申请成功后终端确认：`ls /www/server/panel/vhost/cert/你的域名/`（应有 `fullchain.pem`、`privkey.pem`），且 `/www/server/panel/vhost/nginx/well-known/你的域名.conf` 已生成（自动续期验证用）。
 3. 站点配置文件**整份替换**为下面模板（宝塔风格：单 server 同听 80+443，保留 CERT-APPLY-CHECK 续期 include；`error_page 497` 处理发到 443 的 HTTP 请求）：
 
@@ -323,6 +334,7 @@ cd /www/wwwroot/huodongpeitai && bash scripts/deploy.sh
 |---|---|
 | PM2 管理器"服务器版本过低"最高只有 v16/v17 | 老系统 glibc 2.17；Next.js 14 需 ≥18.17 → 按第一节"情况 2"手动装 glibc-217 版 Node 20，守护用命令行 pm2 |
 | npm 装包 404（registry 是 `.../nodejs-release`） | 前人把 registry 错配成 Node 二进制镜像 → `npm config set registry https://registry.npmmirror.com` |
+| 申请 SSL 报「未找到标识信息 #error_page 404/404.html;」 | 手工配置缺宝塔锚点 → 按第八节第 1 步插入空 CERT-APPLY-CHECK / SSL-START 标记段后重新申请 |
 | 终端 `node: command not found` | PM2 管理器里没选 Node 版本；重开终端让它注入 PATH |
 | 构建卡住/被杀 | 内存不足 → Linux 工具箱加 2G swap |
 | 备份脚本报 mysqldump not found | 已修复（脚本内置宝塔路径）；确认 MySQL 是宝塔装的 |
