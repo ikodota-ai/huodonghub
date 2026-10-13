@@ -344,6 +344,7 @@ cd /www/wwwroot/huodongpeitai && bash scripts/deploy.sh
 | 申请 SSL 报「未找到标识信息 #error_page 404/404.html;」 | 手工配置缺宝塔锚点 → 按第八节第 1 步插入空 CERT-APPLY-CHECK / SSL-START 标记段后重新申请 |
 | 终端 `node: command not found` | PM2 管理器里没选 Node 版本；重开终端让它注入 PATH |
 | 构建卡住/被杀（"已杀死/Killed"，多在 Collecting build traces 阶段） | 内存不足被系统 OOM 杀掉 → 按第一节第 5 步加 2G swap 后重跑 |
+| 构建报 `JavaScript heap out of memory`（堆到 ~1.9G 就死，swap 没用上） | 不是系统内存不够，是 **Node 默认堆上限太低** → deploy.sh 已内置 `--max-old-space-size=3072`；手工构建则 `NODE_OPTIONS="--max-old-space-size=3072" npm run build`（还死就 `BUILD_HEAP_MB=4096 bash scripts/deploy.sh` 并把 swap 加到 4G） |
 | 后台部分页面空白，控制台 `_next/static/chunks/*.js` 报 400 或 ChunkLoadError（常在重新部署/改 HTTPS 后发现） | 上次构建中途被杀，`.next` 是半成品而 pm2 还在跑旧构建（新旧 chunk 对不上）→ 加 swap 后重跑 `bash scripts/deploy.sh`；新版影子构建已从根上杜绝此状态 |
 | 备份脚本报 mysqldump not found | 已修复（脚本内置宝塔路径）；确认 MySQL 是宝塔装的 |
 | 视频能播不能拖/大流量卡 | 走了 Node 而非 Nginx 直发 → 检查第七步 `alias` 路径末尾的 `/` |

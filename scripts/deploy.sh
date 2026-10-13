@@ -18,6 +18,11 @@ npx prisma generate
 
 echo "==> 4/5 构建（影子目录，成功后才切换，构建失败不影响线上）"
 rm -rf .next-build
+# 小内存服务器：Node 默认堆上限可能低于构建所需（约 1.9G），
+# 未显式配置时提到 3G（配合 swap；可用 BUILD_HEAP_MB 覆盖）
+if [[ "${NODE_OPTIONS:-}" != *max-old-space-size* ]]; then
+  export NODE_OPTIONS="${NODE_OPTIONS:-} --max-old-space-size=${BUILD_HEAP_MB:-3072}"
+fi
 BUILD_DIST_DIR=.next-build npm run build
 rm -rf .next.old
 [ -d .next ] && mv .next .next.old
