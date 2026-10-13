@@ -18,6 +18,7 @@ function run(cmd: string, args: string[], env?: Record<string, string>): Promise
 function findMysqldump(): string {
   const candidates = [
     "mysqldump",
+    "/www/server/mysql/bin/mysqldump",
     "/usr/local/mysql/bin/mysqldump",
     "/usr/bin/mysqldump",
     "/usr/local/bin/mysqldump",

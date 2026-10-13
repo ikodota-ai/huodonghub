@@ -2,6 +2,7 @@
 
 > 目标环境：阿里云 ECS（借用的服务器），Nginx + Node(pm2) + MySQL 5.7，无 Docker。
 > 全文以 `/www/huodongpeitai` 为项目目录示例，实际操作时替换。
+> **服务器有宝塔面板？直接看 `doc/deployment-baota.md`**（面板操作版，本文为命令行版）。
 
 ## 零、给 PHP/Java 开发者的心智模型
 

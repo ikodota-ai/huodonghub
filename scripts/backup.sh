@@ -3,6 +3,9 @@
 # crontab 示例：15 3 * * * /www/huodongpeitai/scripts/backup.sh >> /www/huodongpeitai/media/backups/cron.log 2>&1
 set -euo pipefail
 
+# 宝塔/cron 环境 PATH 精简，前置常见 MySQL 路径（宝塔:/www/server/mysql/bin）
+export PATH="/www/server/mysql/bin:/usr/local/mysql/bin:/usr/local/bin:$PATH"
+
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_FILE="$APP_DIR/.env"
 
