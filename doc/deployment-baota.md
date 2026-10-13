@@ -196,10 +196,103 @@ server {
 
 ## 八、HTTPS（网站 → 设置 → SSL）
 
-1. Let's Encrypt → 勾选域名 → 申请（域名 DNS 须已解析到本服务器）。
-2. 申请成功后开启「强制 HTTPS」。
-3. **注意**：宝塔自动生成的 443 server 段只含简单反代；把上面第七步的 5 个 `location` 块（含 upstream 外的全部 location 与 `client_max_body_size`）复制进 443 server 段内，保存。
-4. 微信网页授权（评审绑定 openid）要求 HTTPS，正式投票前必须完成本步。
+1. **保持第七步的 80 配置不动**，Let's Encrypt → 勾选域名 → 申请（域名 DNS 须已解析到本服务器）。
+2. 申请成功后终端确认：`ls /www/server/panel/vhost/cert/你的域名/`（应有 `fullchain.pem`、`privkey.pem`），且 `/www/server/panel/vhost/nginx/well-known/你的域名.conf` 已生成（自动续期验证用）。
+3. 站点配置文件**整份替换**为下面模板（宝塔风格：单 server 同听 80+443，保留 CERT-APPLY-CHECK 续期 include；`error_page 497` 处理发到 443 的 HTTP 请求）：
+
+```nginx
+upstream dth_node {
+    server 127.0.0.1:3000;
+    keepalive 32;
+}
+
+limit_req_zone $binary_remote_addr zone=dth_login:10m rate=10r/m;
+
+server
+{
+    listen 80;
+    listen 443 ssl http2;
+    server_name 你的域名;
+    root /www/wwwroot/huodongpeitai/public;
+
+    #CERT-APPLY-CHECK--START
+    # 用于SSL证书申请时的文件验证相关配置 -- 请勿删除
+    include /www/server/panel/vhost/nginx/well-known/你的域名.conf;
+    #CERT-APPLY-CHECK--END
+
+    #SSL-START SSL相关配置
+    ssl_certificate    /www/server/panel/vhost/cert/你的域名/fullchain.pem;
+    ssl_certificate_key    /www/server/panel/vhost/cert/你的域名/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers EECDH+CHACHA20:EECDH+CHACHA20-draft:EECDH+AES128:RSA+AES128:EECDH+AES256:RSA+AES256:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 10m;
+    add_header Strict-Transport-Security "max-age=31536000";
+    error_page 497  https://$host$request_uri;
+    #SSL-END
+
+    client_max_body_size 64m;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+    gzip_min_length 1k;
+
+    location /api/media/ {
+        alias /www/wwwroot/huodongpeitai/media/;
+        location ~* ^/api/media/(tmp|backups)/ { deny all; }
+        error_page 404 = @media_fallback;
+        add_header Accept-Ranges bytes;
+        add_header Cache-Control "public, max-age=86400";
+        expires 7d;
+    }
+    location @media_fallback {
+        proxy_pass http://dth_node;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+    }
+
+    location /api/screen/ {
+        proxy_pass http://dth_node;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 3600s;
+    }
+
+    location = /api/auth/login {
+        limit_req zone=dth_login burst=5 nodelay;
+        proxy_pass http://dth_node;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    location / {
+        proxy_pass http://dth_node;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    access_log /www/wwwlogs/huodongpeitai.log;
+    error_log  /www/wwwlogs/huodongpeitai.error.log;
+}
+```
+
+4. 面板里开启「强制 HTTPS」（宝塔自动插入 80→443 跳转段，与其续期机制配套；不开则 HTTP/HTTPS 都可用）。
+5. 验证 `https://你的域名/admin/login`；改 `.env`：`BASE_URL="https://你的域名"` → `pm2 restart huodongpeitai`（二维码/分享链接才会用 https 生成）。
+6. 确认阿里云**安全组放行 443**（宝塔「安全」防火墙同步检查）。
+7. 微信网页授权（评审绑定 openid）要求 HTTPS，正式投票前必须完成本步。
 
 ## 九、每日备份（计划任务）
 
