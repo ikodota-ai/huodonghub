@@ -56,3 +56,37 @@ export function GroupShareButton({ name, count }: { name: string; count: number 
     </>
   );
 }
+
+// 视频号外链条目工具：微信内可直跳视频号播放，其他环境引导回微信
+export function isWeChat(): boolean {
+  return typeof navigator !== "undefined" && /MicroMessenger/i.test(navigator.userAgent);
+}
+
+export function VideoEntryLink({ href, externalUrl, className, children }: {
+  href: string;
+  externalUrl?: string | null; // 非空即"视频号外链"条目
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const [hint, setHint] = useState(false);
+  function onClick(e: React.MouseEvent) {
+    if (!externalUrl) return; // 普通视频走默认跳播放页
+    e.preventDefault();
+    if (isWeChat()) {
+      location.href = externalUrl;
+    } else {
+      setHint(true);
+    }
+  }
+  return (
+    <div>
+      <a href={href} onClick={onClick} className={className}>{children}</a>
+      {hint && (
+        <div className="mx-3 mb-2 -mt-1 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700 flex items-start justify-between gap-2">
+          <span>该视频托管于微信视频号，请在<b>微信</b>中打开本页面后点击播放（可把本页链接发送到微信「文件传输助手」再点开）。</span>
+          <button className="shrink-0 text-amber-500 px-1" onClick={() => setHint(false)}>✕</button>
+        </div>
+      )}
+    </div>
+  );
+}

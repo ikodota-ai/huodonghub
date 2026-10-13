@@ -29,7 +29,7 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     const video = await db.video.findUnique({ where: { id: BigInt(params.id) } });
     if (!video) return fail("视频不存在", 404);
     const driver = await getDriver();
-    await driver.remove(video.filePath);
+    if (video.filePath) await driver.remove(video.filePath);
     if (video.coverPath) await driver.remove(video.coverPath);
     await db.video.delete({ where: { id: video.id } });
     return ok(true);

@@ -33,8 +33,10 @@ export default async function PlayPage({ params }: { params: { code: string; id:
       idx: i + 1,
       title: v.title,
       duration: fmtDuration(v.duration),
-      src: await mediaUrl(v.filePath),
+      src: v.filePath ? await mediaUrl(v.filePath) : "",
       cover: v.coverPath ? await mediaUrl(v.coverPath) : null,
+      external: v.source === "external",
+      sourceUrl: v.sourceUrl,
     }))
   );
 

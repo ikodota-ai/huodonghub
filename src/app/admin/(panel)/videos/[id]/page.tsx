@@ -17,7 +17,7 @@ interface GroupDetail {
   password: string; status: number; videos: Video[];
 }
 
-const SOURCE_LABEL: Record<string, string> = { upload: "上传", import: "导入", rescue: "抢救" };
+const SOURCE_LABEL: Record<string, string> = { upload: "上传", import: "导入", rescue: "抢救", external: "视频号" };
 
 export default function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -59,12 +59,14 @@ export default function GroupDetailPage() {
 
       <Tabs active={tab} onChange={setTab} tabs={[
         { key: "videos", label: `视频（${group.videos.length}）` },
+        { key: "external", label: "视频号链接" },
         { key: "import", label: "链接导入" },
         { key: "rescue", label: "抢救" },
         { key: "share", label: "分享" },
       ]} />
 
       {tab === "videos" && <VideosTab group={group} reload={load} totalBytes={totalBytes} />}
+      {tab === "external" && <ExternalTab groupId={group.id} reload={load} />}
       {tab === "import" && <ImportTab groupId={group.id} reload={load} />}
       {tab === "rescue" && <RescueTab groupId={group.id} reload={load} />}
       {tab === "share" && <ShareTab group={group} reload={load} />}
@@ -84,7 +86,7 @@ function VideosTab({ group, reload, totalBytes }: { group: GroupDetail; reload: 
     reload();
   }
   async function del(v: Video) {
-    if (!confirm(`确定删除「${v.title}」？文件将一并删除，不可恢复。`)) return;
+    if (!confirm(v.source === "external" ? `确定删除外链条目「${v.title}」？（视频号上的原视频不受影响）` : `确定删除「${v.title}」？文件将一并删除，不可恢复。`)) return;
     await api(`/api/videos/${v.id}`, { method: "DELETE" });
     reload();
   }
@@ -127,15 +129,21 @@ function VideosTab({ group, reload, totalBytes }: { group: GroupDetail; reload: 
                 <div className="flex-1 min-w-0">
                   <div className="font-medium truncate">{v.title}</div>
                   <div className="text-xs text-ink-300 mt-0.5 space-x-2">
-                    <span className="num">{fmtDuration(v.duration)}</span>
-                    <span>{fmtBytes(v.fileSize)}</span>
-                    {v.width > 0 && <span className="num">{v.width}×{v.height}</span>}
+                    {v.source === "external" ? (
+                      <span className="truncate inline-block max-w-xs align-middle" title={v.sourceUrl ?? ""}>{v.sourceUrl}</span>
+                    ) : (
+                      <>
+                        <span className="num">{fmtDuration(v.duration)}</span>
+                        <span>{fmtBytes(v.fileSize)}</span>
+                        {v.width > 0 && <span className="num">{v.width}×{v.height}</span>}
+                      </>
+                    )}
                     <Badge tone="blue">{SOURCE_LABEL[v.source]}</Badge>
                     {v.status === 0 && <Badge>已下架</Badge>}
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  {v.processStatus === "ready" && <Button variant="ghost" size="sm" onClick={() => setPlaying(v)}>播放</Button>}
+                  {v.processStatus === "ready" && v.source !== "external" && <Button variant="ghost" size="sm" onClick={() => setPlaying(v)}>播放</Button>}
                   <Button variant="ghost" size="sm" onClick={() => move(v, -1)}>↑</Button>
                   <Button variant="ghost" size="sm" onClick={() => move(v, 1)}>↓</Button>
                   {v.processStatus === "failed" && <Button variant="ghost" size="sm" onClick={() => retry(v)}>重试</Button>}
@@ -252,6 +260,65 @@ function ImportTab({ groupId, reload }: { groupId: string; reload: () => void })
         </div>
       )}
     </Card>
+  );
+}
+
+function ExternalTab({ groupId, reload }: { groupId: string; reload: () => void }) {
+  const [title, setTitle] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [cover, setCover] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function submit() {
+    setSaving(true);
+    try {
+      await api("/api/videos", { method: "POST", body: JSON.stringify({ groupId, title, sourceUrl, coverPath: cover }) });
+      setTitle(""); setSourceUrl(""); setCover(null);
+      reload();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "保存失败");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <Card className="p-5">
+        <h3 className="font-semibold mb-3">视频号外链条目</h3>
+        <div className="text-sm text-ink-500 space-y-3">
+          <p>把已发布在视频号的视频以<b className="text-ink-900">链接形式</b>挂到本分组，客户在微信内打开合集页、点击条目即跳转到视频号播放——<b className="text-ink-900">不下载、不占服务器空间与带宽</b>。</p>
+          <div>
+            <p className="font-medium text-brand mb-1">适用场景</p>
+            <p>客户明确在微信里查看（如公众号推文、微信群内分享合集链接）。</p>
+          </div>
+          <div>
+            <p className="font-medium text-brand mb-1">三条边界（务必知悉）</p>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>仅微信内可播放；客户在电脑浏览器/钉钉打开会看到「请在微信中打开」提示</li>
+              <li>视频号侧删除或设为私密后链接即失效，本系统无法感知</li>
+              <li>分组的「暂停访问」只管得住合集页入口，管不到视频号上的内容本身</li>
+            </ol>
+          </div>
+          <p className="text-xs text-ink-300">链接获取：视频号助手（channels.weixin.qq.com）→ 内容管理 → 视频 → 复制链接；或手机微信里分享视频 → 复制链接。</p>
+        </div>
+      </Card>
+      <Card className="p-5">
+        <h3 className="font-semibold mb-3">添加外链条目</h3>
+        <Field label="条目标题" required>
+          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="客户看到的标题" />
+        </Field>
+        <Field label="视频号链接" required>
+          <Input value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://weixin.qq.com/sph/..." />
+        </Field>
+        <Field label="封面图（选填，建议上传；视频号封面地址带时效签名不能直接存）">
+          <ImagePicker value={cover} onChange={(path) => setCover(path)} label="上传封面" />
+        </Field>
+        <Button onClick={submit} disabled={saving || !title.trim() || !sourceUrl.includes("weixin.qq.com/sph/")}>
+          {saving ? "保存中…" : "添加到分组"}
+        </Button>
+      </Card>
+    </div>
   );
 }
 

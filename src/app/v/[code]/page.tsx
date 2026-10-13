@@ -2,8 +2,7 @@ import { db } from "@/lib/db";
 import { mediaUrl } from "@/lib/storage-driver";
 import { cookies } from "next/headers";
 import { sha256 } from "@/lib/codes";
-import Link from "next/link";
-import { PasswordGate, GroupShareButton } from "@/components/public-widgets";
+import { PasswordGate, GroupShareButton, VideoEntryLink } from "@/components/public-widgets";
 import { PublicShell } from "@/components/PublicShell";
 import type { Metadata } from "next";
 
@@ -63,6 +62,8 @@ export default async function GroupPage({ params }: { params: { code: string } }
       title: v.title,
       duration: fmtDuration(v.duration),
       cover: v.coverPath ? await mediaUrl(v.coverPath) : null,
+      external: v.source === "external",
+      sourceUrl: v.sourceUrl,
     }))
   );
 
@@ -85,19 +86,24 @@ export default async function GroupPage({ params }: { params: { code: string } }
       <div className="bg-white mt-2 divide-y divide-ink-100">
         {items.length === 0 && <p className="py-16 text-center text-ink-300 text-sm">内容准备中</p>}
         {items.map((v) => (
-          <Link key={v.id} href={`/v/${group.code}/play/${v.id}`} className="flex gap-3 p-3 active:bg-ink-50">
+          <VideoEntryLink key={v.id} href={`/v/${group.code}/play/${v.id}`} externalUrl={v.external ? v.sourceUrl : null} className="flex gap-3 p-3 active:bg-ink-50">
             <span className="text-lg text-ink-300 num w-6 shrink-0 pt-8">{v.idx}</span>
-            <div className="w-36 shrink-0 aspect-video rounded-lg bg-ink-100 overflow-hidden">
+            <div className="w-36 shrink-0 aspect-video rounded-lg bg-ink-100 overflow-hidden relative">
               {v.cover && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={v.cover} alt="" className="w-full h-full object-cover" loading="lazy" />
               )}
+              {v.external && (
+                <span className="absolute left-1 bottom-1 bg-black/60 text-white text-[10px] px-1.5 py-0.5 rounded">视频号</span>
+              )}
             </div>
             <div className="flex-1 min-w-0 py-1">
               <p className="text-[15px] leading-snug line-clamp-2">{v.title}</p>
-              <p className="text-xs text-ink-300 mt-1.5 num">{v.duration}</p>
+              {v.external
+                ? <p className="text-xs text-brand mt-1.5">微信内点击播放 →</p>
+                : <p className="text-xs text-ink-300 mt-1.5 num">{v.duration}</p>}
             </div>
-          </Link>
+          </VideoEntryLink>
         ))}
       </div>
     </PublicShell>
