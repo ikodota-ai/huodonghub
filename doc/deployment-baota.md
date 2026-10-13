@@ -340,6 +340,7 @@ cd /www/wwwroot/huodongpeitai && bash scripts/deploy.sh
 | 现象 | 原因/解法 |
 |---|---|
 | 系统盘 97% 满（构建/上传没空间），数据盘 `/data` 空着 | **不要整体搬 /www**（/www/server 是宝塔+MySQL 本体）→ 用 bind mount 只迁 `wwwroot`/`wwwlogs` 到数据盘，见文末"附录 A" |
+| `systemctl start/restart nginx` 报 `bind() failed (98: Address already in use)` | 机器上有两个 nginx：systemd 单元是历史遗留（指向 /usr/local/nginx），实际服务的是宝塔的 /www/server/nginx（`ps -ef | grep "master process"` 可见）→ 报错无视；启停统一用宝塔面板或 `/etc/init.d/nginx {start|stop|reload}` |
 | PM2 管理器"服务器版本过低"最高只有 v16/v17 | 老系统 glibc 2.17；Next.js 14 需 ≥18.17 → 按第一节"情况 2"手动装 glibc-217 版 Node 20，守护用命令行 pm2 |
 | npm 装包 404（registry 是 `.../nodejs-release`） | 前人把 registry 错配成 Node 二进制镜像 → `npm config set registry https://registry.npmmirror.com` |
 | 申请 SSL 报「未找到标识信息 #error_page 404/404.html;」 | 手工配置缺宝塔锚点 → 按第八节第 1 步插入空 CERT-APPLY-CHECK / SSL-START 标记段后重新申请 |
@@ -362,7 +363,7 @@ which rsync || yum install -y rsync
 mkdir -p /data/wwwroot /data/wwwlogs
 rsync -avP /www/wwwroot/ /data/wwwroot/          # 第一遍（不停站）
 rsync -avP /www/wwwlogs/ /data/wwwlogs/
-pm2 stop huodongpeitai && systemctl stop nginx   # 停站 1~2 分钟
+pm2 stop huodongpeitai && /etc/init.d/nginx stop # 停站 1~2 分钟（宝塔的 nginx 用 init.d 管，别用 systemctl，见坑位速查）
 rsync -avP --delete /www/wwwroot/ /data/wwwroot/ # 第二遍增量（快）
 rsync -avP --delete /www/wwwlogs/ /data/wwwlogs/
 find /www/wwwroot -type f | wc -l                # 与下一行数字一致才继续
@@ -372,7 +373,7 @@ mv /www/wwwlogs /www/wwwlogs.bak && mkdir /www/wwwlogs
 mount --bind /data/wwwroot /www/wwwroot
 mount --bind /data/wwwlogs /www/wwwlogs
 printf '/data/wwwroot /www/wwwroot none bind 0 0\n/data/wwwlogs /www/wwwlogs none bind 0 0\n' >> /etc/fstab
-systemctl start nginx && pm2 restart huodongpeitai
+/etc/init.d/nginx start && pm2 restart huodongpeitai
 # 验证各网站/后台/视频播放正常后再释放空间：
 # rm -rf /www/wwwroot.bak /www/wwwlogs.bak && df -h /
 ```
