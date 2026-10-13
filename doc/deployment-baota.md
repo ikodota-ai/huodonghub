@@ -229,6 +229,7 @@ cd /www/wwwroot/huodongpeitai && bash scripts/deploy.sh
 | 现象 | 原因/解法 |
 |---|---|
 | PM2 管理器"服务器版本过低"最高只有 v16/v17 | 老系统 glibc 2.17；Next.js 14 需 ≥18.17 → 按第一节"情况 2"手动装 glibc-217 版 Node 20，守护用命令行 pm2 |
+| npm 装包 404（registry 是 `.../nodejs-release`） | 前人把 registry 错配成 Node 二进制镜像 → `npm config set registry https://registry.npmmirror.com` |
 | 终端 `node: command not found` | PM2 管理器里没选 Node 版本；重开终端让它注入 PATH |
 | 构建卡住/被杀 | 内存不足 → Linux 工具箱加 2G swap |
 | 备份脚本报 mysqldump not found | 已修复（脚本内置宝塔路径）；确认 MySQL 是宝塔装的 |
