@@ -357,6 +357,7 @@ cd /www/wwwroot/huodongpeitai && bash scripts/deploy.sh
 | 终端 `node: command not found` | PM2 管理器里没选 Node 版本；重开终端让它注入 PATH |
 | 构建卡住/被杀（"已杀死/Killed"，多在 Collecting build traces 阶段） | 内存不足被系统 OOM 杀掉 → 按第一节第 5 步加 2G swap 后重跑 |
 | 构建报 `JavaScript heap out of memory`（堆到上限就死，swap 没用上） | 不是系统内存不够，是 **Node 堆上限** → deploy.sh 已内置 `--max-old-space-size=3072`；**3072 还死说明这台机器构建不动，直接用"方案 B：本地构建+上传"（第十一节），别再硬撑** |
+| `swapoff /swapfile` 卡住不动 | 没卡死：swap 里有数据（`free -h` 看 used）就要逐页搬回内存，可用内存 > used 就必成功，等 1~5 分钟；另开终端 `watch -n 2 free -h` 看 used 降到 0 即完成，**别 Ctrl+C** |
 | 后台部分页面空白，控制台 `_next/static/chunks/*.js` 报 400 或 ChunkLoadError（常在重新部署/改 HTTPS 后发现） | 上次构建中途被杀，`.next` 是半成品而 pm2 还在跑旧构建（新旧 chunk 对不上）→ 加 swap 后重跑 `bash scripts/deploy.sh`；新版影子构建已从根上杜绝此状态 |
 | 备份脚本报 mysqldump not found | 已修复（脚本内置宝塔路径）；确认 MySQL 是宝塔装的 |
 | 视频能播不能拖/大流量卡 | 走了 Node 而非 Nginx 直发 → 检查第七步 `alias` 路径末尾的 `/` |
