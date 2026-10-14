@@ -34,6 +34,12 @@ export function fmtBytes(bytes: number | string): string {
   return b + " B";
 }
 
+// 选手照片：无图时给默认占位图（SVG，public/img/contestant-placeholder.svg）
+export function contestantImg(image: string | null | undefined): string {
+  if (!image) return "/img/contestant-placeholder.svg";
+  return image.startsWith("http") ? image : `/api/media/${image}`;
+}
+
 export function fmtTime(d: string | Date | null | undefined): string {
   if (!d) return "—";
   const date = new Date(d);

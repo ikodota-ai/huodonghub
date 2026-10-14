@@ -52,6 +52,10 @@ export function ConsoleTab({ vote, reload }: { vote: VoteDetail; reload: () => v
           <Badge tone={ROUND_STATUS[round.status]?.tone}>{ROUND_STATUS[round.status]?.label}</Badge>
         </div>
 
+        {round.contestantIds.length === 0 && (
+          <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2 mb-4">⚠ 本轮未关联选手——投票页与大屏将为空，请先到「轮次」勾选选手</p>
+        )}
+
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
             {round.status !== "active" ? (

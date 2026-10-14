@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { api, getFp } from "@/lib/client";
+import { api, getFp, contestantImg } from "@/lib/client";
 
 interface VotePageData {
   voteId: string;
@@ -106,10 +106,8 @@ export default function AudienceVotePage() {
           return (
             <div key={c.id} className="bg-white rounded-card shadow-card overflow-hidden">
               <div className="aspect-square bg-ink-100">
-                {c.image && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={c.image.startsWith("http") ? c.image : `/api/media/${c.image}`} alt="" className="w-full h-full object-cover" loading="lazy" />
-                )}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={contestantImg(c.image)} alt="" className="w-full h-full object-cover" loading="lazy" />
               </div>
               <div className="p-3">
                 <p className="text-sm font-medium leading-snug"><span className="num text-brand mr-1">{c.number}</span>{c.name}</p>

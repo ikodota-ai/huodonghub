@@ -227,7 +227,18 @@ function RoundEditor({ vote, round, reload, onStatus }: {
 
       <Card className="p-5">
         <h3 className="font-semibold mb-1">本轮参赛选手（{contestantIds.size}）</h3>
-        <p className="text-xs text-ink-300 mb-4">从选手库勾选（选手库在「选手」Tab 维护）</p>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-xs text-ink-300">从选手库勾选（选手库在「选手」Tab 维护）</p>
+          {vote.contestants.length > 0 && (
+            <div className="flex gap-3">
+              <button className="text-xs text-brand hover:underline" onClick={() => setContestantIds(new Set(vote.contestants.map((c) => c.id)))}>全选（{vote.contestants.length}）</button>
+              <button className="text-xs text-ink-300 hover:text-ink-500" onClick={() => setContestantIds(new Set())}>清空</button>
+            </div>
+          )}
+        </div>
+        {contestantIds.size === 0 && vote.contestants.length > 0 && (
+          <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2 mb-3">⚠ 未勾选选手——保存后投票页和大屏将没有任何选手</p>
+        )}
         {vote.contestants.length === 0 ? (
           <p className="text-sm text-ink-300">选手库为空，请先在「选手」Tab 添加</p>
         ) : (

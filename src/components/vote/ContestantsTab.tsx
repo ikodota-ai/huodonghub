@@ -65,7 +65,8 @@ export function ContestantsTab({ vote, reload }: { vote: VoteDetail; reload: () 
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={c.image.startsWith("/") && !c.image.startsWith("/api") ? `/api/media/${c.image}` : c.image} alt="" className="w-12 h-12 rounded-lg object-cover" />
                   ) : (
-                    <div className="w-12 h-12 rounded-lg bg-ink-100" />
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src="/img/contestant-placeholder.svg" alt="" className="w-12 h-12 rounded-lg object-cover" />
                   )}
                 </td>
                 <td className="px-3 py-3 font-medium">{c.name}</td>

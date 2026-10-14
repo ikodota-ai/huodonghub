@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { api, getFp, isWechat } from "@/lib/client";
+import { api, getFp, isWechat, contestantImg } from "@/lib/client";
 
 interface JudgeData {
   voteId: string;
@@ -136,10 +136,8 @@ export default function JudgePage() {
         {data.contestants.map((c) => (
           <div key={c.id} className="bg-white rounded-card shadow-card p-4">
             <div className="flex items-center gap-3">
-              {c.image && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={c.image.startsWith("http") ? c.image : `/api/media/${c.image}`} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" />
-              )}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={contestantImg(c.image)} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" />
               <div className="flex-1 min-w-0">
                 <p className="font-medium"><span className="num text-brand mr-1.5">{c.number}</span>{c.name}</p>
                 {c.intro && <p className="text-xs text-ink-300 mt-0.5 truncate">{c.intro}</p>}
