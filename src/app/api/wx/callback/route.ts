@@ -15,9 +15,12 @@ export async function GET(req: Request) {
   if (!vote) return fail("投票不存在", 404);
   const wx = await getWxConfigFor(vote);
   if (!wx) return fail("该投票未配置服务号", 400);
-  const openid = await wxFetchOpenid(wx.appid, wx.secret, code);
-  if (!openid) return fail("微信授权失败，请重试", 400);
-  cookies().set(wxCookieName(vote.id), signOpenid(openid), {
+  const r = await wxFetchOpenid(wx.appid, wx.secret, code);
+  if (!r.openid) {
+    console.error(`[wx] code换openid失败 vote=${voteId} ${r.error}`);
+    return fail(`微信授权失败（${r.error}）。常见原因：AppID/AppSecret 填错、非认证服务号、授权链接已过期（返回重新进入即可）`, 400);
+  }
+  cookies().set(wxCookieName(vote.id), signOpenid(r.openid), {
     httpOnly: true, sameSite: "lax", path: "/", maxAge: 30 * 24 * 3600,
   });
   return Response.redirect(next);

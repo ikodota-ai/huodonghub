@@ -12,11 +12,21 @@ export function wxAuthorizeUrl(appid: string, redirectUri: string, state: string
   return `https://open.weixin.qq.com/connect/oauth2/authorize?${p}#wechat_redirect`;
 }
 
-export async function wxFetchOpenid(appid: string, secret: string, code: string): Promise<string | null> {
-  const url = `https://api.weixin.qq.com/sns/oauth2/access_token?appid=${appid}&secret=${secret}&code=${code}&grant_type=authorization_code`;
-  const res = await fetch(url, { cache: "no-store" });
-  const json = (await res.json()) as { openid?: string; errcode?: number };
-  return json.openid ?? null;
+export interface WxOpenidResult {
+  openid: string | null;
+  error?: string; // 微信侧 errcode/errmsg 或网络异常，用于排障
+}
+
+export async function wxFetchOpenid(appid: string, secret: string, code: string): Promise<WxOpenidResult> {
+  try {
+    const url = `https://api.weixin.qq.com/sns/oauth2/access_token?appid=${appid}&secret=${secret}&code=${code}&grant_type=authorization_code`;
+    const res = await fetch(url, { cache: "no-store" });
+    const json = (await res.json()) as { openid?: string; errcode?: number; errmsg?: string };
+    if (json.openid) return { openid: json.openid };
+    return { openid: null, error: `errcode=${json.errcode ?? "?"} ${json.errmsg ?? `HTTP ${res.status}`}` };
+  } catch (e) {
+    return { openid: null, error: `网络异常 ${(e as Error).message}` };
+  }
 }
 
 export interface ParsedArticleVideo {
