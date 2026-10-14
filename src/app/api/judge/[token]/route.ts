@@ -96,7 +96,7 @@ export async function POST(req: Request, { params }: Ctx) {
       if (!voter.boundKey) return fail("请先完成微信绑定", 403);
       const openid = await wxOpenidFromCookies(round.voteId);
       const identity = openid || (parsed.data.fp ? fallbackVoterKey(parsed.data.fp) : null);
-      if (identity && identity !== voter.boundKey) return fail("此评分码已绑定其他微信", 403);
+      if (identity && identity !== voter.boundKey) return fail("此评分码已绑定其他微信/设备（如更换设备请联系工作人员重置）", 403);
     }
     const allowed = new Set(round.roundContestants.map((rc) => rc.contestantId.toString()));
 
