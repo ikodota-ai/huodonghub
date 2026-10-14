@@ -20,7 +20,7 @@ export async function GET(_req: Request, { params }: Ctx) {
       videos: group.videos.map((v) => ({
         id: v.id.toString(), title: v.title, duration: v.duration, fileSize: v.fileSize.toString(),
         coverPath: v.coverPath, filePath: v.filePath, source: v.source, sourceUrl: v.sourceUrl, sort: v.sort,
-        status: v.status, processStatus: v.processStatus, width: v.width, height: v.height,
+        status: v.status, processStatus: v.processStatus, width: v.width, height: v.height, views: v.views,
       })),
     });
   } catch (e) {

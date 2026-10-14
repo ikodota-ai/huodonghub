@@ -12,7 +12,7 @@ import { cnNumber, episodeTitle } from "@/lib/cn-number";
 interface Video {
   id: string; title: string; duration: number; fileSize: string; coverPath: string | null; filePath: string;
   source: string; sourceUrl: string | null; sort: number; status: number; processStatus: string;
-  width: number; height: number;
+  width: number; height: number; views: number;
 }
 interface GroupDetail {
   id: string; name: string; code: string; cover: string | null; description: string | null;
@@ -147,6 +147,7 @@ function VideosTab({ group, reload, totalBytes }: { group: GroupDetail; reload: 
                         <span className="num">{fmtDuration(v.duration)}</span>
                         <span>{fmtBytes(v.fileSize)}</span>
                         {v.width > 0 && <span className="num">{v.width}×{v.height}</span>}
+                        <span className="num" title="客户端实际播放次数（会话内去重）">▶ {v.views}</span>
                       </>
                     )}
                     <Badge tone="blue">{SOURCE_LABEL[v.source]}</Badge>

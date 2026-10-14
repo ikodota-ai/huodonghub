@@ -62,6 +62,7 @@ model Video {
   sourceUrl     String?  @map("source_url") @db.VarChar(500)
   sort          Int      @default(0)
   status        Int      @default(1) @db.TinyInt // 1上架 0下架
+  views         Int      @default(0) // 播放次数（客户端 onPlay 去重后计数）
   processStatus String   @default("pending") @map("process_status") @db.VarChar(16) // pending/processing/ready/failed
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")

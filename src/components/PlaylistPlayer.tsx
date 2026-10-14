@@ -3,6 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import { copyText } from "@/lib/clipboard";
 import { isWeChat } from "./public-widgets";
+import { api } from "@/lib/client";
+
+// 播放计数：每个标签页会话内每个视频只计一次（防暂停/重播/刷新增量失真）
+function trackPlay(id: string) {
+  const key = `pv_${id}`;
+  try {
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+  } catch {
+    // sessionStorage 不可用（隐私模式）也照计一次
+  }
+  api("/api/public/play", { method: "POST", body: JSON.stringify({ id }) }).catch(() => {});
+}
 
 export interface PlaylistItem {
   id: string;
@@ -92,6 +105,7 @@ export function PlaylistPlayer({ items, startId, groupName, groupHref }: {
             className="w-full aspect-video"
             controlsList="nodownload"
             onEnded={onEnded}
+            onPlay={() => trackPlay(current.id)}
           />
         )}
       </div>
