@@ -6,7 +6,8 @@ import { db } from "@/lib/db";
 
 export async function GET() {
   try {
-    await requireUser();
+    const user = await requireUser();
+    if (user.role !== "admin") return fail("仅管理员可操作", 403);
     const users = await db.user.findMany({ orderBy: { id: "asc" } });
     return ok(users.map((u) => ({ id: u.id.toString(), username: u.username, name: u.name, role: u.role, status: u.status })));
   } catch (e) {
@@ -18,7 +19,7 @@ const schema = z.object({
   username: z.string().min(2).max(64).regex(/^[a-zA-Z0-9_]+$/, "用户名仅限字母数字下划线"),
   name: z.string().min(1).max(64),
   password: z.string().min(6).max(64),
-  role: z.enum(["admin", "editor"]).default("editor"),
+  role: z.enum(["admin", "maintainer", "editor"]).default("editor"),
 });
 
 export async function POST(req: Request) {

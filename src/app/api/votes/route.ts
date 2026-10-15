@@ -4,11 +4,13 @@ import { ok, fail, handleError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { shortCode } from "@/lib/codes";
 import { getWxGlobalConfig } from "@/lib/settings";
+import { ownerWhere } from "@/lib/ownership";
 
 export async function GET() {
   try {
-    await requireUser();
+    const user = await requireUser();
     const votes = await db.vote.findMany({
+      where: ownerWhere(user),
       orderBy: { updatedAt: "desc" },
       include: { _count: { select: { rounds: true, contestants: true } } },
     });
@@ -36,13 +38,14 @@ const createSchema = z.object({
 
 export async function POST(req: Request) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const parsed = createSchema.safeParse(await req.json());
     if (!parsed.success) return fail("参数错误：" + parsed.error.issues[0]?.message);
     const d = parsed.data;
     const vote = await db.vote.create({
       data: {
         name: d.name, description: d.description, cover: d.cover || null,
+        ownerId: user.id,
         wxAppid: d.wxAppid || null, wxSecret: d.wxSecret || null, status: "draft",
         rounds: {
           create: {

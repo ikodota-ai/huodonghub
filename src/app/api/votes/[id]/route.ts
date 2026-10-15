@@ -3,12 +3,13 @@ import { requireUser } from "@/lib/auth";
 import { ok, fail, handleError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { getWxConfigFor, getWxGlobalConfig } from "@/lib/settings";
+import { canAccess } from "@/lib/ownership";
 
 type Ctx = { params: { id: string } };
 
 export async function GET(_req: Request, { params }: Ctx) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const vote = await db.vote.findUnique({
       where: { id: BigInt(params.id) },
       include: {
@@ -22,7 +23,7 @@ export async function GET(_req: Request, { params }: Ctx) {
         contestants: { orderBy: { sort: "asc" } },
       },
     });
-    if (!vote) return fail("投票不存在", 404);
+    if (!vote || !canAccess(user, vote.ownerId)) return fail("投票不存在", 404);
     const wxEffective = await getWxConfigFor(vote);
     const wxGlobal = await getWxGlobalConfig();
     return ok({
@@ -36,6 +37,7 @@ export async function GET(_req: Request, { params }: Ctx) {
         screenShowResult: r.screenShowResult, screenShowPart: r.screenShowPart, audienceShowResult: r.audienceShowResult,
         screenGroupId: r.screenGroupId?.toString() ?? null, screenQrMode: r.screenQrMode,
         screenPageSize: r.screenPageSize,
+        screenSortMode: r.screenSortMode,
         currentBatch: r.currentBatch,
         contestantIds: r.roundContestants.map((rc) => rc.contestantId.toString()),
         contestantBatches: r.roundContestants.map((rc) => ({ contestantId: rc.contestantId.toString(), batch: rc.batch, seq: rc.seq })),
@@ -67,9 +69,11 @@ const updateSchema = z.object({
 
 export async function PUT(req: Request, { params }: Ctx) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const parsed = updateSchema.safeParse(await req.json());
     if (!parsed.success) return fail("参数错误");
+    const vote = await db.vote.findUnique({ where: { id: BigInt(params.id) }, select: { ownerId: true } });
+    if (!vote || !canAccess(user, vote.ownerId)) return fail("投票不存在", 404);
     await db.vote.update({ where: { id: BigInt(params.id) }, data: parsed.data });
     return ok(true);
   } catch (e) {
@@ -79,7 +83,9 @@ export async function PUT(req: Request, { params }: Ctx) {
 
 export async function DELETE(_req: Request, { params }: Ctx) {
   try {
-    await requireUser();
+    const user = await requireUser();
+    const vote = await db.vote.findUnique({ where: { id: BigInt(params.id) }, select: { ownerId: true } });
+    if (!vote || !canAccess(user, vote.ownerId)) return fail("投票不存在", 404);
     await db.vote.delete({ where: { id: BigInt(params.id) } });
     return ok(true);
   } catch (e) {

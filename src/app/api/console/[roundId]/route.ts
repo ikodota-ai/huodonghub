@@ -4,10 +4,11 @@ import { requireUser } from "@/lib/auth";
 import { ok, fail, handleError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { publish, screenChannel } from "@/lib/sse";
+import { canAccess, voteOwnerByRound } from "@/lib/ownership";
 
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("status"), status: z.enum(["pending", "active", "paused", "finished"]) }),
-  z.object({ action: z.literal("screen"), screenGroupId: z.coerce.bigint().nullable().optional(), screenQrMode: z.number().int().min(0).max(1).optional(), screenShowResult: z.number().int().min(0).max(1).optional(), screenShowPart: z.number().int().min(0).max(1).optional(), screenPageSize: z.number().int().min(0).max(50).optional() }),
+  z.object({ action: z.literal("screen"), screenGroupId: z.coerce.bigint().nullable().optional(), screenQrMode: z.number().int().min(0).max(1).optional(), screenShowResult: z.number().int().min(0).max(1).optional(), screenShowPart: z.number().int().min(0).max(1).optional(), screenPageSize: z.number().int().min(0).max(50).optional(), screenSortMode: z.enum(["total", "number", "seq"]).optional() }),
   z.object({ action: z.literal("countdown"), seconds: z.number().int().min(0).max(86400) }),
   z.object({ action: z.literal("batch"), currentBatch: z.number().int().min(0).max(99) }),
   z.object({ action: z.literal("resetData") }),
@@ -55,8 +56,9 @@ async function groupParticipation(g: { id: bigint; kind: string; restricted: num
 // 控制台实时数据：各群体参与情况 + 观众投票 IP 分布（仅管理员）
 export async function GET(_req: Request, { params }: { params: { roundId: string } }) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const roundId = BigInt(params.roundId);
+    if (!canAccess(user, await voteOwnerByRound(roundId))) return fail("轮次不存在", 404);
     const round = await db.voteRound.findUnique({
       where: { id: roundId },
       include: { groups: { orderBy: { sort: "asc" } }, roundContestants: { select: { batch: true } } },
@@ -90,8 +92,9 @@ export async function GET(_req: Request, { params }: { params: { roundId: string
 
 export async function POST(req: Request, { params }: { params: { roundId: string } }) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const roundId = BigInt(params.roundId);
+    if (!canAccess(user, await voteOwnerByRound(roundId))) return fail("轮次不存在", 404);
     const parsed = schema.safeParse(await req.json());
     if (!parsed.success) return fail("参数错误");
     const d = parsed.data;
@@ -118,6 +121,7 @@ export async function POST(req: Request, { params }: { params: { roundId: string
           screenShowResult: d.screenShowResult,
           screenShowPart: d.screenShowPart,
           screenPageSize: d.screenPageSize,
+          screenSortMode: d.screenSortMode,
         },
       });
     } else if (d.action === "countdown") {

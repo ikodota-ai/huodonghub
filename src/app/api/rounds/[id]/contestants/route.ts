@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { ok, fail, handleError } from "@/lib/api";
 import { db } from "@/lib/db";
+import { canAccess, voteOwnerByRound } from "@/lib/ownership";
 
 // 新格式：contestants（含批次/出场顺序）；兼容旧格式：contestantIds（批次 0 全员）
 const schema = z.object({
@@ -15,9 +16,11 @@ const schema = z.object({
 
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const parsed = schema.safeParse(await req.json());
     if (!parsed.success) return fail("参数错误");
+    const roundId = BigInt(params.id);
+    if (!canAccess(user, await voteOwnerByRound(roundId))) return fail("轮次不存在", 404);
     const items = parsed.data.contestants
       ?? (parsed.data.contestantIds ?? []).map((contestantId, i) => ({ contestantId, batch: 0, seq: i + 1 }));
     // 批次语义：全 0=全员投票；全 ≥1=分批比拼；不允许混合（"全员"与"分批"语义冲突）
@@ -31,7 +34,6 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       if (dup.has(k)) return fail("存在重复选手");
       dup.add(k);
     }
-    const roundId = BigInt(params.id);
     // 校验选手归属本投票，避免外键 500
     const round = await db.voteRound.findUnique({ where: { id: roundId }, select: { voteId: true } });
     if (!round) return fail("轮次不存在", 404);

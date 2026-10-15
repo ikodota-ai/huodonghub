@@ -14,6 +14,16 @@ export async function GET(_req: Request, { params }: { params: { roundId: string
     const currentBatch = round.currentBatch;
     const batches = [...new Set(round.roundContestants.map((rc) => rc.batch).filter((b) => b > 0))].sort((a, b) => a - b);
     const results = currentBatch > 0 ? allResults.filter((r) => r.batch === currentBatch) : allResults;
+    // 大屏排序规则：total=按得分降序（computeRoundResults 已排好）；number=按编号；seq=按出场顺序
+    if (round.screenSortMode === "number") {
+      results.sort((a, b) => {
+        const na = parseInt(a.number, 10), nb = parseInt(b.number, 10);
+        if (!Number.isNaN(na) && !Number.isNaN(nb) && na !== nb) return na - nb;
+        return a.number.localeCompare(b.number, "zh");
+      });
+    } else if (round.screenSortMode === "seq") {
+      results.sort((a, b) => a.seq - b.seq || a.number.localeCompare(b.number, "zh"));
+    }
     // 各群体参与情况（评分/限定群体：已交/总数；开放投票：参与人数）——分批时按当前批次口径
     const participation = await Promise.all(round.groups.map(async (g) => {
       if (g.kind === "score") {

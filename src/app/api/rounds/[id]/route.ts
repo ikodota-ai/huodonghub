@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { ok, fail, handleError } from "@/lib/api";
 import { db } from "@/lib/db";
+import { canAccess, voteOwnerByRound } from "@/lib/ownership";
 
 type Ctx = { params: { id: string } };
 
@@ -16,7 +17,8 @@ const updateSchema = z.object({
 
 export async function PUT(req: Request, { params }: Ctx) {
   try {
-    await requireUser();
+    const user = await requireUser();
+    if (!canAccess(user, await voteOwnerByRound(BigInt(params.id)))) return fail("轮次不存在", 404);
     const parsed = updateSchema.safeParse(await req.json());
     if (!parsed.success) return fail("参数错误");
     const d = parsed.data;
@@ -36,7 +38,8 @@ export async function PUT(req: Request, { params }: Ctx) {
 
 export async function DELETE(_req: Request, { params }: Ctx) {
   try {
-    await requireUser();
+    const user = await requireUser();
+    if (!canAccess(user, await voteOwnerByRound(BigInt(params.id)))) return fail("轮次不存在", 404);
     await db.voteRound.delete({ where: { id: BigInt(params.id) } });
     return ok(true);
   } catch (e) {

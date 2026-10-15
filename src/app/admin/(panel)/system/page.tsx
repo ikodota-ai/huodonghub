@@ -56,7 +56,22 @@ export default function SystemPage() {
               <tr key={u.id}>
                 <td className="px-5 py-3 font-medium">{u.username}</td>
                 <td className="px-3 py-3">{u.name}</td>
-                <td className="px-3 py-3"><Badge tone={u.role === "admin" ? "orange" : "gray"}>{u.role === "admin" ? "管理员" : "编辑"}</Badge></td>
+                <td className="px-3 py-3">
+                  <select
+                    className="h-7 px-1.5 rounded border border-ink-200 text-xs bg-white"
+                    value={u.role}
+                    onChange={async (e) => {
+                      try {
+                        await api(`/api/settings/users/${u.id}`, { method: "PUT", body: JSON.stringify({ role: e.target.value }) });
+                        load();
+                      } catch (err) { alert((err as Error).message); }
+                    }}
+                  >
+                    <option value="editor">编辑</option>
+                    <option value="maintainer">维护人员</option>
+                    <option value="admin">管理员</option>
+                  </select>
+                </td>
                 <td className="px-3 py-3">{u.status === 1 ? <Badge tone="green">启用</Badge> : <Badge>停用</Badge>}</td>
                 <td className="px-3 py-3 text-right">
                   <Button variant="ghost" size="sm" onClick={async () => {
@@ -64,14 +79,27 @@ export default function SystemPage() {
                     if (pwd) { await api(`/api/settings/users/${u.id}`, { method: "PUT", body: JSON.stringify({ password: pwd }) }); alert("已重置"); }
                   }}>重置密码</Button>
                   <Button variant="ghost" size="sm" onClick={async () => {
-                    await api(`/api/settings/users/${u.id}`, { method: "PUT", body: JSON.stringify({ status: u.status === 1 ? 0 : 1 }) });
-                    load();
+                    try {
+                      await api(`/api/settings/users/${u.id}`, { method: "PUT", body: JSON.stringify({ status: u.status === 1 ? 0 : 1 }) });
+                      load();
+                    } catch (err) { alert((err as Error).message); }
                   }}>{u.status === 1 ? "停用" : "启用"}</Button>
+                  <Button variant="ghost" size="sm" className="hover:text-red-500" onClick={async () => {
+                    if (!confirm(`确定删除账号「${u.name}」？`)) return;
+                    try {
+                      await api(`/api/settings/users/${u.id}`, { method: "DELETE" });
+                      load();
+                    } catch (err) { alert((err as Error).message); }
+                  }}>删除</Button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        <p className="px-5 py-3 text-xs text-ink-300 border-t border-ink-100">
+          角色说明：编辑 = 仅自己创建的内容；维护人员 = 可查看并操作全部内容（协助排障），无系统设置权限；管理员 = 全部权限。
+          有内容的账号不能删除（避免带走现场数据），请改为停用。
+        </p>
       </Card>
 
       <StorageCard storage={storage} reload={load} />
@@ -112,8 +140,9 @@ function AddUserForm({ onDone }: { onDone: () => void }) {
       <Field label="初始密码" required hint="至少 6 位"><Input value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
       <Field label="角色">
         <select className="w-full h-9 px-3 rounded-lg border border-ink-200 text-sm bg-white" value={role} onChange={(e) => setRole(e.target.value)}>
-          <option value="editor">编辑（无系统设置权限）</option>
-          <option value="admin">管理员</option>
+          <option value="editor">编辑（仅自己的内容）</option>
+          <option value="maintainer">维护人员（可见并操作全部内容，无系统设置权限）</option>
+          <option value="admin">管理员（全部权限）</option>
         </select>
       </Field>
       {error && <p className="text-sm text-red-500 mb-3">{error}</p>}

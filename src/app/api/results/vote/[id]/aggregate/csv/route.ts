@@ -2,12 +2,13 @@ import { requireUser } from "@/lib/auth";
 import { handleError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { computeVoteAggregate, toCsv } from "@/lib/scoring";
+import { canAccess } from "@/lib/ownership";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const vote = await db.vote.findUnique({ where: { id: BigInt(params.id) }, include: { rounds: { orderBy: { seq: "asc" } } } });
-    if (!vote) return new Response("not found", { status: 404 });
+    if (!vote || !canAccess(user, vote.ownerId)) return new Response("not found", { status: 404 });
     const agg = await computeVoteAggregate(vote.id);
     // 列：排名/编号/名称 + 每个合并群体两列（原始、得分）+ 总分
     const groupKeys: { key: string; name: string }[] = [];

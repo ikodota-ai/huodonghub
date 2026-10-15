@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { ok, fail, handleError } from "@/lib/api";
 import { db } from "@/lib/db";
+import { canAccess, voteOwnerByRound } from "@/lib/ownership";
 
 const schema = z.object({
   roundId: z.coerce.bigint(),
@@ -19,10 +20,11 @@ const schema = z.object({
 
 export async function POST(req: Request) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const parsed = schema.safeParse(await req.json());
     if (!parsed.success) return fail("参数错误：" + parsed.error.issues[0]?.message);
     const d = parsed.data;
+    if (!canAccess(user, await voteOwnerByRound(d.roundId))) return fail("轮次不存在", 404);
     const maxSort = await db.voteGroup.aggregate({ where: { roundId: d.roundId }, _max: { sort: true } });
     const group = await db.voteGroup.create({
       data: { ...d, sort: (maxSort._max.sort ?? 0) + 1 },

@@ -5,6 +5,7 @@ import { getUpload } from "@/lib/uploads";
 import { allocVideoPath } from "@/lib/storage";
 import { kickPipeline } from "@/lib/pipeline";
 import { db } from "@/lib/db";
+import { canAccess } from "@/lib/ownership";
 import fs from "fs";
 import path from "path";
 
@@ -18,7 +19,7 @@ const schema = z.object({
 
 export async function POST(req: Request) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const parsed = schema.safeParse(await req.json());
     if (!parsed.success) return fail("参数错误：" + parsed.error.issues[0]?.message);
     const { uploadId, groupId, title, source, sourceUrl } = parsed.data;
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
     if (up.received.size < up.chunks) return fail(`分片不完整（${up.received.size}/${up.chunks}）`);
 
     const group = await db.videoGroup.findUnique({ where: { id: groupId } });
-    if (!group) return fail("分组不存在", 404);
+    if (!group || !canAccess(user, group.ownerId)) return fail("分组不存在", 404);
 
     const alloc = allocVideoPath(up.filename);
     fs.mkdirSync(path.dirname(alloc.absPath), { recursive: true });

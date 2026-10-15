@@ -195,6 +195,19 @@ export function ConsoleTab({ vote, reload }: { vote: VoteDetail; reload: () => v
               />
               位选手<span className="text-ink-300">（0 = 按大屏宽度自动；大屏用 PgUp/PgDn 翻页，支持翻页笔）</span>
             </label>
+            <label className="flex items-center gap-2 text-sm">
+              选手排序
+              <select
+                className="h-8 px-2 rounded-lg border border-ink-200 text-sm bg-white"
+                value={round.screenSortMode ?? "total"}
+                onChange={(e) => action({ action: "screen", screenSortMode: e.target.value })}
+              >
+                <option value="total">按得分（降序，默认）</option>
+                <option value="number">按编号（导入编号升序）</option>
+                <option value="seq">按出场顺序</option>
+              </select>
+              <span className="text-ink-300">（投票进行中按编号/出场便于对号找选手；揭晓时切回按得分排名）</span>
+            </label>
             <div className="flex items-center gap-2 text-sm">
               投票倒计时
               <input className="w-20 h-8 px-2 rounded-lg border border-ink-200 text-sm" value={countdownMin} onChange={(e) => setCountdownMin(e.target.value.replace(/[^\d]/g, ""))} />

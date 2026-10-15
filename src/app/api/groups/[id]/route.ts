@@ -3,17 +3,18 @@ import { requireUser } from "@/lib/auth";
 import { ok, fail, handleError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { getDriver } from "@/lib/storage-driver";
+import { canAccess } from "@/lib/ownership";
 
 type Ctx = { params: { id: string } };
 
 export async function GET(_req: Request, { params }: Ctx) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const group = await db.videoGroup.findUnique({
       where: { id: BigInt(params.id) },
       include: { videos: { orderBy: { sort: "asc" } } },
     });
-    if (!group) return fail("分组不存在", 404);
+    if (!group || !canAccess(user, group.ownerId)) return fail("分组不存在", 404);
     return ok({
       id: group.id.toString(), name: group.name, code: group.code, cover: group.cover,
       description: group.description, password: group.password ?? "", status: group.status,
@@ -38,9 +39,11 @@ const updateSchema = z.object({
 
 export async function PUT(req: Request, { params }: Ctx) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const parsed = updateSchema.safeParse(await req.json());
     if (!parsed.success) return fail("参数错误");
+    const group = await db.videoGroup.findUnique({ where: { id: BigInt(params.id) }, select: { ownerId: true } });
+    if (!group || !canAccess(user, group.ownerId)) return fail("分组不存在", 404);
     await db.videoGroup.update({ where: { id: BigInt(params.id) }, data: parsed.data });
     return ok(true);
   } catch (e) {
@@ -50,8 +53,10 @@ export async function PUT(req: Request, { params }: Ctx) {
 
 export async function DELETE(_req: Request, { params }: Ctx) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const id = BigInt(params.id);
+    const group = await db.videoGroup.findUnique({ where: { id }, select: { ownerId: true } });
+    if (!group || !canAccess(user, group.ownerId)) return fail("分组不存在", 404);
     const videos = await db.video.findMany({ where: { groupId: id } });
     const driver = await getDriver();
     for (const v of videos) {

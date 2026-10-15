@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { ok, fail, handleError } from "@/lib/api";
 import { db } from "@/lib/db";
+import { canAccess } from "@/lib/ownership";
 
 // 创建"视频号外链"条目（支持批量）：不入库视频文件，集合页点击后微信内跳转视频号播放
 const itemSchema = z.object({
@@ -17,13 +18,13 @@ const schema = z.object({
 
 export async function POST(req: Request) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const parsed = schema.safeParse(await req.json());
     if (!parsed.success) return fail("参数错误：" + (parsed.error.issues[0]?.message ?? ""));
     const { groupId, items } = parsed.data;
 
     const group = await db.videoGroup.findUnique({ where: { id: groupId } });
-    if (!group) return fail("分组不存在", 404);
+    if (!group || !canAccess(user, group.ownerId)) return fail("分组不存在", 404);
 
     const maxSort = await db.video.aggregate({ where: { groupId }, _max: { sort: true } });
     const base = (maxSort._max.sort ?? 0) + 1;

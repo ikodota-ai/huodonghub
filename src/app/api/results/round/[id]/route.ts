@@ -2,12 +2,13 @@ import { requireUser } from "@/lib/auth";
 import { ok, handleError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { computeRoundResults } from "@/lib/scoring";
+import { canAccess } from "@/lib/ownership";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const round = await db.voteRound.findUnique({ where: { id: BigInt(params.id) }, include: { vote: true, groups: { orderBy: { sort: "asc" } } } });
-    if (!round) return ok(null);
+    if (!round || !canAccess(user, round.vote.ownerId)) return ok(null);
     const results = await computeRoundResults(round.id);
     const batchMode = results.some((r) => r.batch > 0);
     return ok({

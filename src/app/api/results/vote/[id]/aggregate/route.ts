@@ -2,12 +2,13 @@ import { requireUser } from "@/lib/auth";
 import { ok, handleError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { computeVoteAggregate } from "@/lib/scoring";
+import { canAccess } from "@/lib/ownership";
 
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const vote = await db.vote.findUnique({ where: { id: BigInt(params.id) } });
-    if (!vote) return ok(null);
+    if (!vote || !canAccess(user, vote.ownerId)) return ok(null);
     // ?rounds=1,2,3 勾选参与聚合的轮次，缺省为全部轮次
     const roundsParam = new URL(req.url).searchParams.get("rounds");
     const roundIds = roundsParam

@@ -17,6 +17,8 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
   sessions     Session[]
+  votes        Vote[]
+  videoGroups  VideoGroup[]
 
   @@map("users")
 }
@@ -38,12 +40,15 @@ model VideoGroup {
   code        String   @unique @db.VarChar(16) // 对外短码 /v/{code}
   cover       String?  @db.VarChar(255)
   description String?  @db.VarChar(500)
+  ownerId     BigInt?  @map("owner_id")
+  owner       User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   password    String?  @db.VarChar(64)
   status      Int      @default(1) @db.TinyInt // 1开放 0暂停
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
   videos      Video[]
 
+  @@index([ownerId])
   @@map("video_groups")
 }
 
@@ -76,6 +81,8 @@ model Vote {
   name        String   @db.VarChar(128)
   cover       String?  @db.VarChar(255)
   description String?  @db.VarChar(500)
+  ownerId     BigInt?  @map("owner_id")
+  owner       User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   wxAppid     String?  @map("wx_appid") @db.VarChar(64)
   wxSecret    String?  @map("wx_secret") @db.VarChar(128)
   status      String   @default("draft") @db.VarChar(16) // draft/active/finished/archived
@@ -84,6 +91,7 @@ model Vote {
   rounds      VoteRound[]
   contestants VoteContestant[]
 
+  @@index([ownerId])
   @@map("votes")
 }
 
@@ -100,6 +108,7 @@ model VoteRound {
   screenShowResult   Int      @default(1) @map("screen_show_result") @db.TinyInt
   screenShowPart     Int      @default(1) @map("screen_show_part") @db.TinyInt // 大屏显示参与率
   screenPageSize     Int      @default(0) @map("screen_page_size") // 大屏每屏选手数，0=按屏宽自动
+  screenSortMode     String   @default("total") @map("screen_sort_mode") @db.VarChar(16) // 大屏排序：total=按得分 number=按编号 seq=按出场顺序
   audienceShowResult Int      @default(0) @map("audience_show_result") @db.TinyInt
   screenGroupId      BigInt?  @map("screen_group_id") // 大屏当前群体，null=总分
   screenQrMode       Int      @default(1) @map("screen_qr_mode") @db.TinyInt

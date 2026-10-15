@@ -19,6 +19,7 @@ export interface ContestantResult {
   intro: string | null;
   image: string | null;
   batch: number;
+  seq: number;
   groups: GroupDetail[];
   total: number;
 }
@@ -59,7 +60,11 @@ export async function computeRoundResults(roundId: bigint): Promise<ContestantRe
   });
 
   const batchOf = new Map<string, number>(); // contestantId -> 批次（0=全员）
-  for (const rc of round.roundContestants) batchOf.set(rc.contestantId.toString(), rc.batch);
+  const seqOf = new Map<string, number>(); // contestantId -> 出场顺序
+  for (const rc of round.roundContestants) {
+    batchOf.set(rc.contestantId.toString(), rc.batch);
+    seqOf.set(rc.contestantId.toString(), rc.seq);
+  }
 
   // 评分群体：每位选手的"实际评分人数"。分批模式下不能用"全群体已提交人数"，
   // 否则漏评某批的评委会摊薄该批选手的均分。全员模式下与旧口径一致。
@@ -137,6 +142,7 @@ export async function computeRoundResults(roundId: bigint): Promise<ContestantRe
       intro: contestant.intro,
       image: contestant.image,
       batch: batchOf.get(contestant.id.toString()) ?? 0,
+      seq: seqOf.get(contestant.id.toString()) ?? 0,
       groups: details,
       total,
     };

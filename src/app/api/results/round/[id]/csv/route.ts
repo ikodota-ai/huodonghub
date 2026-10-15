@@ -2,12 +2,13 @@ import { requireUser } from "@/lib/auth";
 import { handleError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { computeRoundResults, toCsv } from "@/lib/scoring";
+import { canAccess } from "@/lib/ownership";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const round = await db.voteRound.findUnique({ where: { id: BigInt(params.id) }, include: { vote: true, groups: { orderBy: { sort: "asc" } } } });
-    if (!round) return new Response("not found", { status: 404 });
+    if (!round || !canAccess(user, round.vote.ownerId)) return new Response("not found", { status: 404 });
     const results = await computeRoundResults(round.id);
     const batchMode = results.some((r) => r.batch > 0);
     const header = ["排名", "编号", "名称", ...(batchMode ? ["批次"] : []), ...round.groups.flatMap((g) => [`${g.name}(原始)`, `${g.name}(得分)`]), "总分"];

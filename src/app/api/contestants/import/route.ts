@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth";
 import { ok, fail, handleError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { fetchImageToMedia } from "@/lib/remote-image";
+import { canAccess } from "@/lib/ownership";
 
 const schema = z.object({
   voteId: z.coerce.bigint(),
@@ -16,10 +17,12 @@ const schema = z.object({
 // CSV 批量导入（客户端解析后传 JSON）；第三列图片 URL 由服务端下载入媒体库，失败不阻断
 export async function POST(req: Request) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const parsed = schema.safeParse(await req.json());
     if (!parsed.success) return fail("参数错误：" + parsed.error.issues[0]?.message);
     const { voteId, items } = parsed.data;
+    const vote = await db.vote.findUnique({ where: { id: voteId }, select: { ownerId: true } });
+    if (!vote || !canAccess(user, vote.ownerId)) return fail("投票不存在", 404);
     const agg = await db.voteContestant.aggregate({ where: { voteId }, _max: { sort: true }, _count: true });
     let sort = agg._max.sort ?? 0;
     let num = agg._count ?? 0;

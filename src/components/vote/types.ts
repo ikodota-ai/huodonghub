@@ -12,6 +12,7 @@ export interface RoundItem {
   screenShowResult: number; screenShowPart: number; audienceShowResult: number;
   screenGroupId: string | null; screenQrMode: number;
   screenPageSize: number;
+  screenSortMode: "total" | "number" | "seq";
   currentBatch: number;
   contestantIds: string[];
   contestantBatches: { contestantId: string; batch: number; seq: number }[];

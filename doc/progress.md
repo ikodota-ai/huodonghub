@@ -54,6 +54,14 @@
   - API：`POST/PUT /api/vote-groups` 接受 avgMode/pctMode；`GET /api/votes/{id}` 透出；RoundsTab 保存随 sort 一并回写。
   - **端到端验证**（10 选手 2 批 2 评委 2 观众指纹）：scorers 选手 6 均分 100（参评 1）↔ roster 摊薄为 50（名单 2 人）✓；得票率 batch 1/1=20 分 ↔ round 1/2=10 分 ✓；固定分值每票 2 分：1 票=2 分、2 票=4 分 ✓；恢复默认后数值还原 ✓。
 - **2026-10-15 增补 22：分批"全部开放"陷阱修复**。用户报告"观众投票页未按分批显示，还是全部选手"。根因：保存选手配置时批次指针被安全重置为 0（全部开放），操作员直接「开始投票」后未再到控制台切换批次 → currentBatch=0 按设计展示全部。修复：① 控制台「开始投票」时若存在批次且指针为 0，自动定位到第一批；② 轮次保存成功提示在分批模式下追加"开始投票自动定位第 1 批，也可在控制台随时切换"。本地复现（保存分批→开始投票→观众见全部 4 人）→ 修复后观众只见批 1 的 2 人 ✓。**存量进行中的轮次**：到「控制台 → 当前批次」手动切到目标批次即立即生效。
+- **2026-10-15 增补 23：多账号内容隔离（三角色）**。用户需求：系统变多人共用——admin 看全部，授权维护人员也能看全部（排障），其他账号只见自己的内容。
+  - **角色模型**：`admin` 管理员（全部权限）/ `maintainer` 维护人员（可查看并操作全部内容，无系统设置/用户管理/备份权限）/ `editor` 编辑（默认，仅自己内容）。role 复用现有 VarChar 字段，枚举扩展无迁移。
+  - **数据**：`votes.owner_id`、`video_groups.owner_id`（可空 + SetNull 外键 + 索引），迁移 `add_content_owner`；存量内容回填归第一个 admin 账号。
+  - **隔离实现**：新增 `src/lib/ownership.ts`——`canSeeAll`（admin/maintainer）、`ownerWhere`（列表过滤）、`canAccess`（详情校验，不通过统一 404 防 ID 探测）+ 5 个子资源外链归属解析（round/group/voter/contestant→vote.ownerId，video→group.ownerId）。**37 个 requireUser 路由逐一核对**：votes/rounds/vote-groups/voters/contestants×3/results×4/console/groups/videos×4/upload-merge/import-run/dashboard 全部加隔离；公开路由（投票 H5/评委页/大屏/媒体/合集页）与系统设置（本已 admin-only）不动；上传 chunk/init 凭随机会话 id 无需校验（merge 绑分组时验归属）。
+  - **dashboard 按归属统计**；备份/磁盘健康仅全量角色可见（editor 只看自己的转码失败与 ffmpeg）；mediaBytes 对 editor 显示自己视频总量。
+  - **用户管理加固**：`GET /settings/users` 补 admin-only（原任何登录账号可列用户）；角色下拉支持三档；**有内容的账号禁止删除**（提示改停用或移交）；最后一个可用 admin 禁止降级/停用/删除；停用账号会话立即失效（现有 currentUser 的 status 检查天然生效）。
+  - **UI**：系统设置用户表角色改为三档下拉（行内可改），加删除按钮与角色说明文案；AdminShell 系统设置菜单本就对非 admin 隐藏。
+  - **端到端验证**（编辑A/编辑B/维护M 三账号）：B 列表全空、直接访问/操作 A 的资源全 404、用户列表 403 ✓；M 可见可操作 A 的内容但系统设置 403 ✓；admin 全见 ✓；删除有内容账号被拒（文案指引停用）✓；最后 admin 降级被拒 ✓；停用 A 后其会话即刻失效 ✓；公开页面匿名照常 ✓。
 - **M1 框架**：Next.js 14 + Prisma + MySQL 5.7 脚手架；登录鉴权（users/sessions，bcrypt）；存储抽象层（本地 + 阿里云 OSS 双驱动，后台可切换、可测试连接）；部署资产 `deploy/nginx.conf`、`deploy/ecosystem.config.js`、`scripts/deploy.sh`、`scripts/backup.sh`（每日备份、保留 14 天）；`doc/deployment.md` 部署手册
 - **M2 视频分组**：分片上传（init/chunk/merge，单片 8MB）→ ffmpeg 流水线（probe → faststart → 截封面 → OSS 推送）→ 分组管理（密码、暂停访问、排序）→ 客户合集页 `/v/{code}` + 播放页（对标视频号合集）→ 分享链接/二维码 → F1.5 公众号文章链接导入（best-effort，已正确拒绝视频号链接）→ 视频抢救工作台
 - **M3 投票**：投票 CRUD（微信服务号 AppID/AppSecret 独立配置）；轮次管理（三群体勾选配置 + 权重条 =100% 校验 + 自定义群体）；选手库（CSV 导入）；评审管理（批量生成口令、专属二维码、绑定状态、重置）；评委评分页 `/judge/{token}`（专家/大众通用，大众首次扫码绑定微信）；观众投票 H5 `/vote/{code}`（限票数、防重复、openid/设备指纹双轨身份）；大屏 `/screen/{roundId}`（二维码模式 + ECharts 柱状图模式，SSE 实时推送，键盘操作）；大屏控制台（开始/暂停/结束、群体切换、二维码显隐、倒计时）；结果页（单轮 + 跨轮聚合 + CSV 导出，BOM 头 Excel 兼容）

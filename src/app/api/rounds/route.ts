@@ -3,15 +3,18 @@ import { requireUser } from "@/lib/auth";
 import { ok, fail, handleError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { shortCode } from "@/lib/codes";
+import { canAccess } from "@/lib/ownership";
 
 const schema = z.object({ voteId: z.coerce.bigint(), name: z.string().min(1).max(128) });
 
 export async function POST(req: Request) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const parsed = schema.safeParse(await req.json());
     if (!parsed.success) return fail("参数错误");
     const { voteId, name } = parsed.data;
+    const vote = await db.vote.findUnique({ where: { id: voteId }, select: { ownerId: true } });
+    if (!vote || !canAccess(user, vote.ownerId)) return fail("投票不存在", 404);
     const maxSeq = await db.voteRound.aggregate({ where: { voteId }, _max: { seq: true } });
     const prevRound = await db.voteRound.findFirst({
       where: { voteId }, orderBy: { seq: "desc" },
