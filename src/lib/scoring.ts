@@ -64,13 +64,18 @@ export async function computeRoundResults(roundId: bigint): Promise<ContestantRe
   // 评分群体：每位选手的"实际评分人数"。分批模式下不能用"全群体已提交人数"，
   // 否则漏评某批的评委会摊薄该批选手的均分。全员模式下与旧口径一致。
   const scorerCountMap = new Map<string, Map<string, number>>(); // groupId -> contestantId -> 评分人数
+  const rosterCountMap = new Map<string, number>(); // groupId -> 评委名单总人数（avgMode=roster 时作分母）
   // 投票群体：每个批次的独立投票人数（得票率基数按选手所在批次统计，批 0 = 整轮）
   const batchVotersMap = new Map<string, Map<number, number>>(); // groupId -> batch -> 人数
+  const roundVotersMap = new Map<string, number>(); // groupId -> 整轮独立投票人数（pctMode=round 时作分母）
   for (const g of round.groups) {
     if (g.kind === "score") {
       const rows: { contestant_id: bigint; c: bigint }[] = await db.$queryRaw`
         SELECT contestant_id, COUNT(DISTINCT voter_id) AS c FROM score_entries WHERE group_id = ${g.id} GROUP BY contestant_id`;
       scorerCountMap.set(g.id.toString(), new Map(rows.map((r) => [r.contestant_id.toString(), Number(r.c)])));
+      if (g.avgMode === "roster") {
+        rosterCountMap.set(g.id.toString(), await db.voter.count({ where: { groupId: g.id } }));
+      }
     } else {
       const rows: { batch: number; c: bigint }[] = await db.$queryRaw`
         SELECT rc.batch AS batch, COUNT(DISTINCT ve.voter_key) AS c
@@ -79,6 +84,11 @@ export async function computeRoundResults(roundId: bigint): Promise<ContestantRe
         WHERE ve.group_id = ${g.id}
         GROUP BY rc.batch`;
       batchVotersMap.set(g.id.toString(), new Map(rows.map((r) => [Number(r.batch), Number(r.c)])));
+      if (g.pctMode === "round") {
+        const rv: { c: bigint }[] = await db.$queryRaw`
+          SELECT COUNT(DISTINCT voter_key) AS c FROM vote_entries WHERE group_id = ${g.id}`;
+        roundVotersMap.set(g.id.toString(), Number(rv[0]?.c ?? 0));
+      }
     }
   }
 
@@ -87,8 +97,12 @@ export async function computeRoundResults(roundId: bigint): Promise<ContestantRe
       const stat = g.groupStats.find((s) => s.contestantId === contestant.id);
       const cache = n(stat?.valueCache);
       const participants = g.kind === "score"
-        ? (scorerCountMap.get(g.id.toString())?.get(contestant.id.toString()) ?? 0)
-        : (batchVotersMap.get(g.id.toString())?.get(batchOf.get(contestant.id.toString()) ?? 0) ?? 0);
+        ? (g.avgMode === "roster"
+            ? (rosterCountMap.get(g.id.toString()) ?? 0)
+            : (scorerCountMap.get(g.id.toString())?.get(contestant.id.toString()) ?? 0))
+        : (g.pctMode === "round"
+            ? (roundVotersMap.get(g.id.toString()) ?? 0)
+            : (batchVotersMap.get(g.id.toString())?.get(batchOf.get(contestant.id.toString()) ?? 0) ?? 0));
       const weight = n(g.weight);
       let raw = 0;
       let contribution = 0;

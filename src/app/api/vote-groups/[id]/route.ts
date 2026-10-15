@@ -15,6 +15,8 @@ const updateSchema = z.object({
   fixedPoints: z.number().positive().nullable().optional(),
   restricted: z.number().int().min(0).max(1).optional(),
   sort: z.number().int().optional(),
+  avgMode: z.enum(["scorers", "roster"]).optional(),
+  pctMode: z.enum(["batch", "round"]).optional(),
 });
 
 export async function PUT(req: Request, { params }: Ctx) {

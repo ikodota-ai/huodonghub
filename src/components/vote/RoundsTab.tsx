@@ -15,14 +15,17 @@ interface GroupDraft {
   maxVotes: number;
   allowRepeat: boolean;
   restricted: boolean;
+  avgMode: "scorers" | "roster"; // 评分均分口径：scorers=实际评分人数（默认）roster=全体评委人数
+  pctMode: "batch" | "round";    // 投票得票率口径：batch=按批次（默认）round=按整轮
+  fixedPoints: number | null;    // 投票固定分值：null=得票率模式，否则 1 票=fixedPoints 分
   needBind?: boolean;
   id?: string;
 }
 
 const PRESETS: { key: string; label: string; draft: Omit<GroupDraft, "enabled"> }[] = [
-  { key: "expert", label: "专家评审", draft: { name: "专家评审", kind: "score", weight: 60, maxScore: 100, maxVotes: 3, allowRepeat: false, restricted: true } },
-  { key: "public", label: "大众评审", draft: { name: "大众评审", kind: "score", weight: 20, maxScore: 100, maxVotes: 3, allowRepeat: false, restricted: true, needBind: true } },
-  { key: "audience", label: "观众评审", draft: { name: "观众评审", kind: "vote", weight: 20, maxScore: 100, maxVotes: 3, allowRepeat: false, restricted: false } },
+  { key: "expert", label: "专家评审", draft: { name: "专家评审", kind: "score", weight: 60, maxScore: 100, maxVotes: 3, allowRepeat: false, restricted: true, avgMode: "scorers", pctMode: "batch", fixedPoints: null } },
+  { key: "public", label: "大众评审", draft: { name: "大众评审", kind: "score", weight: 20, maxScore: 100, maxVotes: 3, allowRepeat: false, restricted: true, avgMode: "scorers", pctMode: "batch", fixedPoints: null, needBind: true } },
+  { key: "audience", label: "观众评审", draft: { name: "观众评审", kind: "vote", weight: 20, maxScore: 100, maxVotes: 3, allowRepeat: false, restricted: false, avgMode: "scorers", pctMode: "batch", fixedPoints: null } },
 ];
 
 export function RoundsTab({ vote, reload }: { vote: VoteDetail; reload: () => void }) {
@@ -79,6 +82,7 @@ function RoundEditor({ vote, round, reload, onStatus }: {
           enabled: true, id: existing.id, name: existing.name, kind: existing.kind,
           weight: existing.weight, maxScore: existing.maxScore, maxVotes: existing.maxVotes,
           allowRepeat: existing.allowRepeat === 1, restricted: existing.restricted === 1,
+          avgMode: existing.avgMode, pctMode: existing.pctMode, fixedPoints: existing.fixedPoints,
         };
       }
       return { enabled: false, ...p.draft };
@@ -88,6 +92,7 @@ function RoundEditor({ vote, round, reload, onStatus }: {
         drafts.push({
           enabled: true, id: g.id, name: g.name, kind: g.kind, weight: g.weight,
           maxScore: g.maxScore, maxVotes: g.maxVotes, allowRepeat: g.allowRepeat === 1, restricted: g.restricted === 1,
+          avgMode: g.avgMode, pctMode: g.pctMode, fixedPoints: g.fixedPoints,
         });
       }
     }
@@ -166,6 +171,8 @@ function RoundEditor({ vote, round, reload, onStatus }: {
           name: g.name, kind: g.kind, weight: Number(g.weight) || 0,
           maxScore: g.maxScore, maxVotes: g.maxVotes,
           allowRepeat: g.allowRepeat ? 1 : 0, restricted: g.restricted ? 1 : 0,
+          avgMode: g.avgMode, pctMode: g.pctMode,
+          fixedPoints: g.kind === "vote" && g.fixedPoints != null && g.fixedPoints > 0 ? g.fixedPoints : null,
         };
         if (g.enabled && g.id) {
           // 按界面显示顺序回写 sort，修复历史遗留的群体排序错乱（专家评审→大众评审→观众评审→自定义）
@@ -247,10 +254,20 @@ function RoundEditor({ vote, round, reload, onStatus }: {
                     onChange={(e) => patchGroup(idx, { weight: Number(e.target.value) })} /> %
                 </label>
                 {g.kind === "score" && g.enabled && (
-                  <label className="text-sm text-ink-500 flex items-center gap-1">
-                    满分 <Input type="number" className="w-20 h-8" value={g.maxScore}
-                      onChange={(e) => patchGroup(idx, { maxScore: Number(e.target.value) })} />
-                  </label>
+                  <>
+                    <label className="text-sm text-ink-500 flex items-center gap-1">
+                      满分 <Input type="number" className="w-20 h-8" value={g.maxScore}
+                        onChange={(e) => patchGroup(idx, { maxScore: Number(e.target.value) })} />
+                    </label>
+                    <label className="text-sm text-ink-500 flex items-center gap-1">
+                      均分按
+                      <select className="h-8 rounded border border-ink-200 text-sm bg-white" value={g.avgMode}
+                        onChange={(e) => patchGroup(idx, { avgMode: e.target.value as "scorers" | "roster" })}>
+                        <option value="scorers">实际评分人数</option>
+                        <option value="roster">全体评委人数</option>
+                      </select>
+                    </label>
+                  </>
                 )}
                 {g.kind === "vote" && g.enabled && (
                   <>
@@ -258,6 +275,30 @@ function RoundEditor({ vote, round, reload, onStatus }: {
                       每人 <Input type="number" className="w-16 h-8" value={g.maxVotes}
                         onChange={(e) => patchGroup(idx, { maxVotes: Number(e.target.value) })} /> 票
                     </label>
+                    <label className="text-sm text-ink-500 flex items-center gap-1">
+                      计分
+                      <select className="h-8 rounded border border-ink-200 text-sm bg-white"
+                        value={g.fixedPoints != null ? "fixed" : "pct"}
+                        onChange={(e) => patchGroup(idx, e.target.value === "fixed" ? { fixedPoints: 1 } : { fixedPoints: null })}>
+                        <option value="pct">按得票率</option>
+                        <option value="fixed">固定分值</option>
+                      </select>
+                    </label>
+                    {g.fixedPoints != null ? (
+                      <label className="text-sm text-ink-500 flex items-center gap-1">
+                        每票 <Input type="number" className="w-16 h-8" value={g.fixedPoints}
+                          onChange={(e) => patchGroup(idx, { fixedPoints: Math.max(0.01, Number(e.target.value) || 1) })} /> 分
+                      </label>
+                    ) : (
+                      <label className="text-sm text-ink-500 flex items-center gap-1">
+                        得票率按
+                        <select className="h-8 rounded border border-ink-200 text-sm bg-white" value={g.pctMode}
+                          onChange={(e) => patchGroup(idx, { pctMode: e.target.value as "batch" | "round" })}>
+                          <option value="batch">本批参与人数</option>
+                          <option value="round">整轮参与人数</option>
+                        </select>
+                      </label>
+                    )}
                     <label className="text-sm text-ink-500 flex items-center gap-1">
                       <input type="checkbox" checked={g.allowRepeat} onChange={(e) => patchGroup(idx, { allowRepeat: e.target.checked })} /> 允许重复投同一人
                     </label>
@@ -271,6 +312,19 @@ function RoundEditor({ vote, round, reload, onStatus }: {
               </div>
               {g.enabled && g.restricted && (
                 <p className="text-xs text-ink-300 mt-2 ml-13 pl-12">在「评审」Tab 为此群体添加评审并生成专属二维码{g.name === "大众评审" ? "，评审首次扫码将绑定微信" : ""}</p>
+              )}
+              {g.enabled && (
+                <p className="text-xs text-ink-300 mt-1.5 ml-13 pl-12">
+                  {g.kind === "score"
+                    ? g.avgMode === "scorers"
+                      ? "计分：均分 = 总分 ÷ 实际给该选手打分的评委数——漏评某批的评委不摊薄该批分数（推荐，分批必选）"
+                      : "计分：均分 = 总分 ÷ 评委名单总人数——缺席/漏评等同计 0 分拉低均分，适合“全员必须参评”的赛规"
+                    : g.fixedPoints != null
+                      ? `计分：得分 = 票数 × 每票 ${g.fixedPoints} 分——与参与人数无关，适合“1 票 = N 分”直接累加（注意：不设上限，得分可超过权重占比）`
+                      : g.pctMode === "batch"
+                        ? "计分：得分 = 票数 ÷ 本批参与人数 × 权重%——分批比拼各批独立计算，晚场观众少不摊薄得分（推荐）"
+                        : "计分：得分 = 票数 ÷ 整轮参与人数 × 权重%——全员同时投票的传统口径，分批模式下晚场批次会被早场参与人数摊薄"}
+                </p>
               )}
             </div>
           ))}

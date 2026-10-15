@@ -1,7 +1,9 @@
 export interface VoteGroupItem {
   id: string; name: string; kind: "score" | "vote"; weight: number;
   maxScore: number; maxVotes: number; allowRepeat: number;
-  fixedPoints: number | null; restricted: number; sort: number; voterCount: number;
+  fixedPoints: number | null; restricted: number; sort: number;
+  avgMode: "scorers" | "roster"; pctMode: "batch" | "round";
+  voterCount: number;
 }
 
 export interface RoundItem {

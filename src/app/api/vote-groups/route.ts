@@ -13,6 +13,8 @@ const schema = z.object({
   allowRepeat: z.number().int().min(0).max(1).default(0),
   fixedPoints: z.number().positive().nullable().default(null),
   restricted: z.number().int().min(0).max(1).default(1),
+  avgMode: z.enum(["scorers", "roster"]).default("scorers"),
+  pctMode: z.enum(["batch", "round"]).default("batch"),
 });
 
 export async function POST(req: Request) {

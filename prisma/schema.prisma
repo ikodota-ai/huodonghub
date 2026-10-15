@@ -155,6 +155,8 @@ model VoteGroup {
   fixedPoints Decimal? @map("fixed_points") @db.Decimal(8, 2)
   restricted  Int      @default(1) @db.TinyInt // 1限定名单 0开放扫码
   sort        Int      @default(0)
+  avgMode     String   @default("scorers") @map("avg_mode") @db.VarChar(16) // 评分均分口径：scorers=实际评分人数 roster=全体评委人数
+  pctMode     String   @default("batch") @map("pct_mode") @db.VarChar(16) // 投票得票率口径：batch=按选手所在批次 round=按整轮
   voters      Voter[]
   scoreEntries ScoreEntry[]
   voteEntries VoteEntry[]
