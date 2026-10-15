@@ -16,6 +16,8 @@ interface ScreenState {
   screenShowPart: boolean;
   screenPageSize: number;
   countdownEndsAt: string | null;
+  currentBatch: number;
+  batches: number[];
   groups: { id: string; name: string; kind: string; weight: number }[];
   participation: { groupId: string; done: number; total: number }[];
   results: {
@@ -264,6 +266,9 @@ function ChartMode({ state, view, live, countdown }: { state: ScreenState; view:
           <h1 className="text-3xl font-bold">{state.voteName} · {state.roundName} · {groupInfo ? groupInfo.name : "总分"} <span className="text-white/50 text-2xl">实时显示</span></h1>
           <p className="text-white/50 mt-2 text-lg">
             {groupInfo ? `群体类型：${groupInfo.kind === "score" ? "评分群体" : "投票群体"} · 权重：${groupInfo.weight}%${view.showPart && partText ? ` · ${partText}` : ""}` : "全部群体加权总分"}
+            {state.batches.length > 0 && state.currentBatch > 0 && (
+              <span className="ml-3 inline-flex items-center rounded-full bg-brand/25 text-white px-3 py-0.5 text-base font-bold">第 {state.currentBatch} 批 / 共 {state.batches.length} 批</span>
+            )}
           </p>
         </div>
         <div className="text-right">

@@ -45,21 +45,29 @@ export async function GET(req: Request, { params }: Ctx) {
     const round = await loadRound(params.code);
     if (!round) return fail("投票链接无效", 404);
     const group = round.groups[0] ?? null;
+    const batchOf = new Map(round.roundContestants.map((rc) => [rc.contestantId.toString(), rc.batch]));
+    const batches = [...new Set(round.roundContestants.map((rc) => rc.batch).filter((b) => b > 0))].sort((a, b) => a - b);
+    const currentBatch = round.currentBatch;
+    const inScope = (cid: string) => currentBatch === 0 || (batchOf.get(cid) ?? 0) === currentBatch;
     const fp = new URL(req.url).searchParams.get("fp") || "";
     const openid = await wxOpenidFromCookies(round.voteId);
     const voterKey = openid || (fp ? fallbackVoterKey(fp) : null);
+    // 票数配额按当前批次独立计算：每批每人 maxVotes 票
     let used = 0;
     let votedContestantIds: string[] = [];
     if (group && voterKey) {
       const entries = await db.voteEntry.findMany({ where: { groupId: group.id, voterKey } });
-      used = entries.length;
-      votedContestantIds = entries.map((e) => e.contestantId.toString());
+      const scoped = entries.filter((e) => inScope(e.contestantId.toString()));
+      used = scoped.length;
+      votedContestantIds = scoped.map((e) => e.contestantId.toString());
     }
     return ok({
       voteId: round.voteId.toString(),
       voteName: round.vote.name,
       cover: round.vote.cover,
       roundName: round.name,
+      currentBatch,
+      batches,
       phase: roundPhase(round),
       countdownEndsAt: round.countdownEndsAt,
       audienceShowResult: round.audienceShowResult === 1,
@@ -69,10 +77,13 @@ export async function GET(req: Request, { params }: Ctx) {
         id: group.id.toString(), maxVotes: group.maxVotes,
         allowRepeat: group.allowRepeat === 1, used, votedContestantIds,
       } : null,
-      contestants: round.roundContestants.map((rc) => ({
-        id: rc.contestant.id.toString(), number: rc.contestant.number,
-        name: rc.contestant.name, intro: rc.contestant.intro, image: rc.contestant.image,
-      })),
+      contestants: round.roundContestants
+        .filter((rc) => inScope(rc.contestant.id.toString()))
+        .sort((a, b) => a.seq - b.seq)
+        .map((rc) => ({
+          id: rc.contestant.id.toString(), number: rc.contestant.number,
+          name: rc.contestant.name, intro: rc.contestant.intro, image: rc.contestant.image,
+        })),
     });
   } catch (e) {
     return handleError(e);
@@ -95,15 +106,20 @@ export async function POST(req: Request, { params }: Ctx) {
     const voterKey = openid || (parsed.data.fp ? fallbackVoterKey(parsed.data.fp) : null);
     if (!voterKey) return fail("无法确定身份，请刷新重试", 403);
 
+    // 当前批次作用域：只能为当前批次选手投票，配额按批次独立计算
+    const currentBatch = round.currentBatch;
+    const scopeContestants = round.roundContestants.filter((rc) => currentBatch === 0 || rc.batch === currentBatch);
     const contestantId = parsed.data.contestantId;
-    const allowed = new Set(round.roundContestants.map((rc) => rc.contestantId.toString()));
-    if (!allowed.has(contestantId.toString())) return fail("选手无效");
+    const allowed = new Set(scopeContestants.map((rc) => rc.contestantId.toString()));
+    if (!allowed.has(contestantId.toString())) return fail(currentBatch > 0 ? "该选手不在当前投票批次" : "选手无效");
 
     const ip = clientIp();
     if (await ipThrottleHit(group.id, ip)) return fail("当前网络投票过于频繁，请稍后再试", 429);
 
-    const usedEntries = await db.voteEntry.findMany({ where: { groupId: group.id, voterKey } });
-    if (usedEntries.length >= group.maxVotes) return fail("您的票数已用完", 403);
+    const scopeIds = new Set(scopeContestants.map((rc) => rc.contestantId.toString()));
+    const allEntries = await db.voteEntry.findMany({ where: { groupId: group.id, voterKey } });
+    const usedEntries = allEntries.filter((e) => scopeIds.has(e.contestantId.toString()));
+    if (usedEntries.length >= group.maxVotes) return fail(currentBatch > 0 ? "您本批的票数已用完" : "您的票数已用完", 403);
     if (group.allowRepeat !== 1 && usedEntries.some((e) => e.contestantId === contestantId)) {
       return fail("不可重复投同一选手", 403);
     }

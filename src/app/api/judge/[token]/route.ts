@@ -34,17 +34,27 @@ export async function GET(_req: Request, { params }: Ctx) {
     const { round } = group;
     const wxConfigured = !!(await getWxConfigFor(round.vote));
     const bound = !!voter.boundKey;
-    // 已提交时回显其打分/投票明细（评委常要求确认）
+    const batchOf = new Map(round.roundContestants.map((rc) => [rc.contestantId.toString(), rc.batch]));
+    const batches = [...new Set(round.roundContestants.map((rc) => rc.batch).filter((b) => b > 0))].sort((a, b) => a - b);
+    const currentBatch = round.currentBatch;
+    // 当前批次作用域：currentBatch=0 → 全员（旧行为）；N → 仅第 N 批选手
+    const inScope = (cid: string) => currentBatch === 0 || (batchOf.get(cid) ?? 0) === currentBatch;
+    // 已提交明细（含批次归属，用于回显与"每批可提交一次"的判定）
     let submitted: { contestantId: string; score: number | null }[] = [];
+    let submittedBatches: number[] = [];
     if (voter.hasVoted === 1) {
       if (group.kind === "score") {
         const entries = await db.scoreEntry.findMany({ where: { groupId: group.id, voterId: voter.id } });
-        submitted = entries.map((e) => ({ contestantId: e.contestantId.toString(), score: Number(e.score) }));
+        submittedBatches = [...new Set(entries.map((e) => batchOf.get(e.contestantId.toString()) ?? 0))];
+        submitted = entries.filter((e) => inScope(e.contestantId.toString())).map((e) => ({ contestantId: e.contestantId.toString(), score: Number(e.score) }));
       } else {
         const entries = await db.voteEntry.findMany({ where: { groupId: group.id, voterKey: `voter_${voter.id}` } });
-        submitted = entries.map((e) => ({ contestantId: e.contestantId.toString(), score: null }));
+        submittedBatches = [...new Set(entries.map((e) => batchOf.get(e.contestantId.toString()) ?? 0))];
+        submitted = entries.filter((e) => inScope(e.contestantId.toString())).map((e) => ({ contestantId: e.contestantId.toString(), score: null }));
       }
     }
+    // 批次提交判定：全员模式（currentBatch=0）任何提交即锁定；分批模式按批次判定
+    const currentBatchSubmitted = currentBatch === 0 ? voter.hasVoted === 1 : submittedBatches.includes(currentBatch);
     return ok({
       voteId: round.vote.id.toString(),
       voteName: round.vote.name,
@@ -59,14 +69,21 @@ export async function GET(_req: Request, { params }: Ctx) {
       needBind: voter.needBind === 1 && !bound,
       wxConfigured,
       hasVoted: voter.hasVoted === 1,
+      currentBatch,
+      batches,
+      submittedBatches,
+      currentBatchSubmitted,
       submitted,
-      contestants: round.roundContestants.map((rc) => ({
-        id: rc.contestant.id.toString(),
-        number: rc.contestant.number,
-        name: rc.contestant.name,
-        intro: rc.contestant.intro,
-        image: rc.contestant.image,
-      })),
+      contestants: round.roundContestants
+        .filter((rc) => inScope(rc.contestant.id.toString()))
+        .sort((a, b) => (a.seq - b.seq) || 0)
+        .map((rc) => ({
+          id: rc.contestant.id.toString(),
+          number: rc.contestant.number,
+          name: rc.contestant.name,
+          intro: rc.contestant.intro,
+          image: rc.contestant.image,
+        })),
     });
   } catch (e) {
     return handleError(e);
@@ -86,7 +103,6 @@ export async function POST(req: Request, { params }: Ctx) {
     const { group } = voter;
     const { round } = group;
     if (round.status !== "active") return fail("当前轮次不在评分时间", 403);
-    if (voter.hasVoted === 1) return fail("您已提交过，不可重复提交", 403);
 
     const parsed = submitSchema.safeParse(await req.json());
     if (!parsed.success) return fail("参数错误");
@@ -98,7 +114,18 @@ export async function POST(req: Request, { params }: Ctx) {
       const identity = openid || (parsed.data.fp ? fallbackVoterKey(parsed.data.fp) : null);
       if (identity && identity !== voter.boundKey) return fail("此评分码已绑定其他微信/设备（如更换设备请联系工作人员重置）", 403);
     }
-    const allowed = new Set(round.roundContestants.map((rc) => rc.contestantId.toString()));
+    // 当前批次作用域：只允许为当前批次选手评分/投票；每批限提交一次
+    const currentBatch = round.currentBatch;
+    const scopeContestants = round.roundContestants.filter((rc) => currentBatch === 0 || rc.batch === currentBatch);
+    const allowed = new Set(scopeContestants.map((rc) => rc.contestantId.toString()));
+    const scopeIds = scopeContestants.map((rc) => rc.contestantId);
+    if (group.kind === "score") {
+      const dup = await db.scoreEntry.findFirst({ where: { groupId: group.id, voterId: voter.id, contestantId: { in: scopeIds } } });
+      if (dup) return fail(currentBatch > 0 ? `第 ${currentBatch} 批已提交过，不可重复提交` : "您已提交过，不可重复提交", 403);
+    } else {
+      const dup = await db.voteEntry.findFirst({ where: { groupId: group.id, voterKey: `voter_${voter.id}`, contestantId: { in: scopeIds } } });
+      if (dup) return fail(currentBatch > 0 ? `第 ${currentBatch} 批已提交过，不可重复提交` : "您已提交过，不可重复提交", 403);
+    }
 
     if (group.kind === "score") {
       const scores = parsed.data.scores ?? [];

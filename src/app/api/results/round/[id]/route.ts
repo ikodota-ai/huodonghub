@@ -9,11 +9,14 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     const round = await db.voteRound.findUnique({ where: { id: BigInt(params.id) }, include: { vote: true, groups: { orderBy: { sort: "asc" } } } });
     if (!round) return ok(null);
     const results = await computeRoundResults(round.id);
+    const batchMode = results.some((r) => r.batch > 0);
     return ok({
       voteName: round.vote.name, roundName: round.name, status: round.status,
+      batchMode,
       groups: round.groups.map((g) => ({ id: g.id.toString(), name: g.name, kind: g.kind, weight: Number(g.weight) })),
       results: results.map((r, i) => ({
         rank: i + 1, contestantId: r.contestantId.toString(), number: r.number, name: r.name, total: r.total,
+        batch: r.batch,
         groups: r.groups.map((d) => ({ groupId: d.groupId.toString(), name: d.groupName, kind: d.kind, weight: d.weight, raw: d.raw, contribution: d.contribution, participants: d.participants })),
       })),
     });

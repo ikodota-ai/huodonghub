@@ -27,7 +27,7 @@ export async function POST(req: Request) {
           })) ?? [],
         },
         roundContestants: {
-          create: prevRound?.roundContestants.map((rc) => ({ contestantId: rc.contestantId })) ?? [],
+          create: prevRound?.roundContestants.map((rc) => ({ contestantId: rc.contestantId, batch: rc.batch, seq: rc.seq })) ?? [],
         },
       },
     });

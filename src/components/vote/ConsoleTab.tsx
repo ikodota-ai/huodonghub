@@ -10,7 +10,11 @@ export function ConsoleTab({ vote, reload }: { vote: VoteDetail; reload: () => v
   const [roundId, setRoundId] = useState<string | null>(vote.rounds[0]?.id ?? null);
   const round = vote.rounds.find((r) => r.id === roundId) ?? vote.rounds[0];
   const [countdownMin, setCountdownMin] = useState("5");
-  const [live, setLive] = useState<{ participation: { groupId: string; name: string; kind: string; mode: "roster" | "open"; done: number; total: number }[]; topIps: { ip: string; count: number }[] } | null>(null);
+  const [live, setLive] = useState<{
+    participation: { groupId: string; name: string; kind: string; mode: "roster" | "open"; done: number; total: number }[];
+    topIps: { ip: string; count: number }[];
+    currentBatch: number; batches: number[];
+  } | null>(null);
 
   useEffect(() => {
     if (round && !vote.rounds.some((r) => r.id === roundId)) setRoundId(round.id);
@@ -22,7 +26,7 @@ export function ConsoleTab({ vote, reload }: { vote: VoteDetail; reload: () => v
     let dead = false;
     async function fetchLive() {
       try {
-        const res = await api<{ participation: never[]; topIps: never[] }>(`/api/console/${round.id}`);
+        const res = await api<{ participation: never[]; topIps: never[]; currentBatch: number; batches: number[] }>(`/api/console/${round.id}`);
         if (!dead) setLive(res);
       } catch {}
     }
@@ -81,6 +85,31 @@ export function ConsoleTab({ vote, reload }: { vote: VoteDetail; reload: () => v
               }}>清空数据</Button>
             </span>
           </div>
+
+          {live && live.batches.length > 0 && (
+            <div className="border-t border-ink-100 pt-4">
+              <p className="text-sm font-medium mb-2">当前批次（共 {live.batches.length} 批）</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button size="sm" variant="secondary" disabled={live.currentBatch <= 1}
+                  onClick={() => action({ action: "batch", currentBatch: Math.max(1, live.currentBatch - 1) })}>← 上一批</Button>
+                <select
+                  className="h-9 px-3 rounded-lg border border-ink-200 text-sm bg-white"
+                  value={live.currentBatch}
+                  onChange={(e) => action({ action: "batch", currentBatch: Number(e.target.value) })}
+                >
+                  <option value={0}>全部开放</option>
+                  {live.batches.map((b) => <option key={b} value={b}>第 {b} 批</option>)}
+                </select>
+                <Button size="sm" variant="secondary" disabled={live.currentBatch >= live.batches[live.batches.length - 1]}
+                  onClick={() => action({ action: "batch", currentBatch: live.currentBatch + 1 })}>下一批 →</Button>
+              </div>
+              <p className="text-xs text-ink-300 mt-2">
+                {live.currentBatch === 0
+                  ? "当前为全部开放：所有批次选手都可被评分/投票。正式比拼建议切换到具体批次。"
+                  : `现在为第 ${live.currentBatch} 批：评委页/观众页/大屏只针对该批选手，切换立即生效。`}
+              </p>
+            </div>
+          )}
 
           {live && (
             <div className="border-t border-ink-100 pt-4">

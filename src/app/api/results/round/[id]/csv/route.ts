@@ -9,9 +9,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     const round = await db.voteRound.findUnique({ where: { id: BigInt(params.id) }, include: { vote: true, groups: { orderBy: { sort: "asc" } } } });
     if (!round) return new Response("not found", { status: 404 });
     const results = await computeRoundResults(round.id);
-    const header = ["排名", "编号", "名称", ...round.groups.flatMap((g) => [`${g.name}(原始)`, `${g.name}(得分)`]), "总分"];
+    const batchMode = results.some((r) => r.batch > 0);
+    const header = ["排名", "编号", "名称", ...(batchMode ? ["批次"] : []), ...round.groups.flatMap((g) => [`${g.name}(原始)`, `${g.name}(得分)`]), "总分"];
     const rows = results.map((r, i) => [
       String(i + 1), r.number, r.name,
+      ...(batchMode ? [`第${r.batch}批`] : []),
       ...r.groups.flatMap((d) => [d.kind === "vote" ? `${d.raw}票/${d.participants}人` : `${d.raw}`, String(d.contribution)]),
       String(r.total),
     ]);

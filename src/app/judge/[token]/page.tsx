@@ -9,6 +9,7 @@ interface JudgeData {
   voteName: string; roundName: string; roundStatus: string; groupName: string;
   kind: "score" | "vote"; maxScore: number; maxVotes: number; allowRepeat: number;
   voterName: string; needBind: boolean; wxConfigured: boolean; hasVoted: boolean;
+  currentBatch: number; batches: number[]; submittedBatches: number[]; currentBatchSubmitted: boolean;
   submitted: { contestantId: string; score: number | null }[];
   contestants: { id: string; number: string; name: string; intro: string | null; image: string | null }[];
 }
@@ -29,9 +30,12 @@ export default function JudgePage() {
       const d = await api<JudgeData>(`/api/judge/${token}`);
       setData(d);
       if (d.kind === "score") {
-        const init: Record<string, number> = {};
-        d.contestants.forEach((c) => { init[c.id] = 0; });
-        setScores(init);
+        // 合并而非重置：轮询刷新或批次切换时保留已填分数
+        setScores((prev) => {
+          const next: Record<string, number> = {};
+          d.contestants.forEach((c) => { next[c.id] = prev[c.id] ?? 0; });
+          return next;
+        });
       }
     } catch (e) {
       setError((e as Error).message);
@@ -39,6 +43,12 @@ export default function JudgePage() {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+
+  // 分批模式：8s 轮询，控制台切换批次后本页自动跟进（合并保留未提交分数）
+  useEffect(() => {
+    const t = setInterval(() => { load(); }, 8000);
+    return () => clearInterval(t);
+  }, [load]);
 
   // 需要绑定时：有微信授权 cookie 或指纹 → 自动完成绑定
   useEffect(() => {
@@ -72,10 +82,37 @@ export default function JudgePage() {
   if (error) return <Center><p className="text-ink-500">{error}</p></Center>;
   if (!data) return <Center><Spinner /></Center>;
 
-  if (done || data.hasVoted) {
+  const batchMode = data.batches.length > 0;
+  const allSubmitted = batchMode && data.batches.every((b) => data.submittedBatches.includes(b));
+
+  if (done || data.currentBatchSubmitted) {
     const submittedRows = data.submitted
       .map((s) => ({ ...s, contestant: data.contestants.find((c) => c.id === s.contestantId) }))
       .filter((s) => s.contestant);
+    // 分批模式且还有未提交批次：中场页——本批回显 + 等待下一批（轮询自动跟进）
+    if (batchMode && !allSubmitted) {
+      return (
+        <Center>
+          <div className="text-center w-full max-w-sm">
+            <div className="w-20 h-20 rounded-full bg-green-100 text-green-600 text-4xl flex items-center justify-center mx-auto mb-4">✓</div>
+            <h1 className="text-xl font-bold">第 {data.currentBatch} 批已提交</h1>
+            <p className="text-sm text-ink-300 mt-2">{data.voteName} · {data.roundName} · {data.groupName}</p>
+            {submittedRows.length > 0 && (
+              <div className="mt-5 bg-white rounded-xl shadow-card text-left divide-y divide-ink-100">
+                <p className="px-4 py-2.5 text-xs text-ink-300">本批{data.kind === "score" ? "打分" : "投票"}明细（{data.voterName}）</p>
+                {submittedRows.map((s) => (
+                  <div key={s.contestantId} className="px-4 py-2.5 flex items-center justify-between text-sm">
+                    <span><span className="num text-ink-300 mr-1.5">{s.contestant!.number}</span>{s.contestant!.name}</span>
+                    {s.score != null && <span className="num font-bold text-brand-700">{s.score} 分</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-sm text-brand mt-5 animate-pulse">请保留本页面，等待下一批开始后将自动刷新…</p>
+          </div>
+        </Center>
+      );
+    }
     return (
       <Center>
         <div className="text-center w-full max-w-sm">
@@ -129,7 +166,12 @@ export default function JudgePage() {
     <div className="min-h-screen bg-ink-50 max-w-3xl mx-auto pb-32">
       <div className="bg-white px-4 py-4 shadow-sm sticky top-0 z-10">
         <h1 className="font-bold leading-snug">{data.voteName} · {data.roundName}</h1>
-        <p className="text-sm text-ink-500 mt-0.5">{data.groupName} · 评审：{data.voterName}</p>
+        <p className="text-sm text-ink-500 mt-0.5">
+          {data.groupName} · 评审：{data.voterName}
+          {batchMode && data.currentBatch > 0 && (
+            <span className="ml-2 inline-flex items-center rounded-full bg-brand/10 text-brand px-2 py-0.5 text-xs font-bold">第 {data.currentBatch} 批 / 共 {data.batches.length} 批</span>
+          )}
+        </p>
       </div>
 
       <div className="p-4 space-y-3">

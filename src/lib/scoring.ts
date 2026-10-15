@@ -18,6 +18,7 @@ export interface ContestantResult {
   name: string;
   intro: string | null;
   image: string | null;
+  batch: number;
   groups: GroupDetail[];
   total: number;
 }
@@ -57,26 +58,37 @@ export async function computeRoundResults(roundId: bigint): Promise<ContestantRe
     },
   });
 
-  const participantsMap = new Map<string, number>();
+  const batchOf = new Map<string, number>(); // contestantId -> 批次（0=全员）
+  for (const rc of round.roundContestants) batchOf.set(rc.contestantId.toString(), rc.batch);
+
+  // 评分群体：每位选手的"实际评分人数"。分批模式下不能用"全群体已提交人数"，
+  // 否则漏评某批的评委会摊薄该批选手的均分。全员模式下与旧口径一致。
+  const scorerCountMap = new Map<string, Map<string, number>>(); // groupId -> contestantId -> 评分人数
+  // 投票群体：每个批次的独立投票人数（得票率基数按选手所在批次统计，批 0 = 整轮）
+  const batchVotersMap = new Map<string, Map<number, number>>(); // groupId -> batch -> 人数
   for (const g of round.groups) {
-    let count = 0;
     if (g.kind === "score") {
-      count = await db.voter.count({ where: { groupId: g.id, hasVoted: 1 } });
-    } else if (g.restricted === 1) {
-      count = await db.voter.count({ where: { groupId: g.id, hasVoted: 1 } });
+      const rows: { contestant_id: bigint; c: bigint }[] = await db.$queryRaw`
+        SELECT contestant_id, COUNT(DISTINCT voter_id) AS c FROM score_entries WHERE group_id = ${g.id} GROUP BY contestant_id`;
+      scorerCountMap.set(g.id.toString(), new Map(rows.map((r) => [r.contestant_id.toString(), Number(r.c)])));
     } else {
-      const rows: { c: bigint }[] = await db.$queryRaw`
-        SELECT COUNT(DISTINCT voter_key) AS c FROM vote_entries WHERE group_id = ${g.id}`;
-      count = Number(rows[0]?.c ?? 0);
+      const rows: { batch: number; c: bigint }[] = await db.$queryRaw`
+        SELECT rc.batch AS batch, COUNT(DISTINCT ve.voter_key) AS c
+        FROM vote_entries ve
+        JOIN round_contestants rc ON rc.contestant_id = ve.contestant_id AND rc.round_id = ${roundId}
+        WHERE ve.group_id = ${g.id}
+        GROUP BY rc.batch`;
+      batchVotersMap.set(g.id.toString(), new Map(rows.map((r) => [Number(r.batch), Number(r.c)])));
     }
-    participantsMap.set(g.id.toString(), count);
   }
 
   const results: ContestantResult[] = round.roundContestants.map(({ contestant }) => {
     const details: GroupDetail[] = round.groups.map((g) => {
       const stat = g.groupStats.find((s) => s.contestantId === contestant.id);
       const cache = n(stat?.valueCache);
-      const participants = participantsMap.get(g.id.toString()) ?? 0;
+      const participants = g.kind === "score"
+        ? (scorerCountMap.get(g.id.toString())?.get(contestant.id.toString()) ?? 0)
+        : (batchVotersMap.get(g.id.toString())?.get(batchOf.get(contestant.id.toString()) ?? 0) ?? 0);
       const weight = n(g.weight);
       let raw = 0;
       let contribution = 0;
@@ -110,6 +122,7 @@ export async function computeRoundResults(roundId: bigint): Promise<ContestantRe
       name: contestant.name,
       intro: contestant.intro,
       image: contestant.image,
+      batch: batchOf.get(contestant.id.toString()) ?? 0,
       groups: details,
       total,
     };

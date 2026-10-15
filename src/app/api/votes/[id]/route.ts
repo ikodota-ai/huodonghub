@@ -16,7 +16,7 @@ export async function GET(_req: Request, { params }: Ctx) {
           orderBy: { seq: "asc" },
           include: {
             groups: { orderBy: { sort: "asc" }, include: { _count: { select: { voters: true } } } },
-            roundContestants: { select: { contestantId: true } },
+            roundContestants: { select: { contestantId: true, batch: true, seq: true } },
           },
         },
         contestants: { orderBy: { sort: "asc" } },
@@ -36,7 +36,9 @@ export async function GET(_req: Request, { params }: Ctx) {
         screenShowResult: r.screenShowResult, screenShowPart: r.screenShowPart, audienceShowResult: r.audienceShowResult,
         screenGroupId: r.screenGroupId?.toString() ?? null, screenQrMode: r.screenQrMode,
         screenPageSize: r.screenPageSize,
+        currentBatch: r.currentBatch,
         contestantIds: r.roundContestants.map((rc) => rc.contestantId.toString()),
+        contestantBatches: r.roundContestants.map((rc) => ({ contestantId: rc.contestantId.toString(), batch: rc.batch, seq: rc.seq })),
         groups: r.groups.map((g) => ({
           id: g.id.toString(), name: g.name, kind: g.kind, weight: Number(g.weight),
           maxScore: g.maxScore, maxVotes: g.maxVotes, allowRepeat: g.allowRepeat,

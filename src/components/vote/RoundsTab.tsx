@@ -94,6 +94,12 @@ function RoundEditor({ vote, round, reload, onStatus }: {
     return drafts;
   });
   const [contestantIds, setContestantIds] = useState<Set<string>>(new Set(round.contestantIds));
+  // 批次与出场顺序：batch 0=全员投票（默认），≥1=第 N 批分批比拼
+  const [batchSeq, setBatchSeq] = useState<Map<string, { batch: number; seq: number }>>(() => {
+    const m = new Map<string, { batch: number; seq: number }>();
+    (round.contestantBatches ?? []).forEach((cb, i) => m.set(cb.contestantId, { batch: cb.batch, seq: cb.seq || i + 1 }));
+    return m;
+  });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [audienceShowResult, setAudienceShowResult] = useState(round.audienceShowResult === 1);
@@ -103,12 +109,55 @@ function RoundEditor({ vote, round, reload, onStatus }: {
   const audienceUrl = typeof window !== "undefined" ? `${location.origin}/vote/${round.code}` : "";
   const screenUrl = typeof window !== "undefined" ? `${location.origin}/screen/${round.id}` : "";
 
+  const selectedBatches = Array.from(contestantIds).map((id) => batchSeq.get(id)?.batch ?? 0);
+  const mixedBatch = selectedBatches.some((b) => b === 0) && selectedBatches.some((b) => b > 0);
+
   function patchGroup(idx: number, patch: Partial<GroupDraft>) {
     setGroups((gs) => gs.map((g, i) => (i === idx ? { ...g, ...patch } : g)));
   }
 
+  function patchBatchSeq(id: string, patch: Partial<{ batch: number; seq: number }>) {
+    setBatchSeq((m) => {
+      const n = new Map(m);
+      const cur = n.get(id) ?? { batch: 0, seq: 0 };
+      n.set(id, { ...cur, ...patch });
+      return n;
+    });
+  }
+
+  // 按选手库顺序为已选选手生成出场顺序 1..n
+  function autoSeq() {
+    setBatchSeq((m) => {
+      const n = new Map(m);
+      let i = 1;
+      for (const c of vote.contestants) {
+        if (contestantIds.has(c.id)) n.set(c.id, { batch: n.get(c.id)?.batch ?? 0, seq: i++ });
+      }
+      return n;
+    });
+  }
+
+  // 按出场顺序每 N 人分为一批（批次 1..k）
+  function autoBatch() {
+    const input = prompt("每批人数（按出场顺序依次分组）", "5");
+    if (!input) return;
+    const per = Number(input);
+    if (!Number.isInteger(per) || per < 1) { alert("请输入正整数"); return; }
+    setBatchSeq((m) => {
+      const n = new Map(m);
+      const ordered = vote.contestants
+        .filter((c) => contestantIds.has(c.id))
+        .sort((a, b) => ((n.get(a.id)?.seq ?? 0) - (n.get(b.id)?.seq ?? 0)) || a.sort - b.sort);
+      ordered.forEach((c, idx) => {
+        n.set(c.id, { batch: Math.floor(idx / per) + 1, seq: n.get(c.id)?.seq ?? idx + 1 });
+      });
+      return n;
+    });
+  }
+
   async function save() {
     if (totalWeight !== 100) { setMsg("权重合计必须等于 100%"); return; }
+    if (mixedBatch) { setMsg("批次设置不能混合：要么全部为 0（全员投票），要么全部 ≥1（分批比拼）"); return; }
     setSaving(true); setMsg("");
     try {
       await api(`/api/rounds/${round.id}`, { method: "PUT", body: JSON.stringify({ name, audienceShowResult: audienceShowResult ? 1 : 0 }) });
@@ -128,7 +177,16 @@ function RoundEditor({ vote, round, reload, onStatus }: {
           await api(`/api/vote-groups/${g.id}`, { method: "DELETE" });
         }
       }
-      await api(`/api/rounds/${round.id}/contestants`, { method: "PUT", body: JSON.stringify({ contestantIds: Array.from(contestantIds) }) });
+      await api(`/api/rounds/${round.id}/contestants`, {
+        method: "PUT",
+        body: JSON.stringify({
+          contestants: Array.from(contestantIds).map((id) => ({
+            contestantId: id,
+            batch: batchSeq.get(id)?.batch ?? 0,
+            seq: batchSeq.get(id)?.seq ?? 0,
+          })),
+        }),
+      });
       setMsg("已保存 ✓");
       await reload();
     } catch (e) {
@@ -238,6 +296,22 @@ function RoundEditor({ vote, round, reload, onStatus }: {
             </div>
           )}
         </div>
+        {contestantIds.size > 0 && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4 text-xs">
+            <span className="text-ink-500">批次/出场：</span>
+            <button className="text-brand hover:underline" onClick={autoSeq}>按名单顺序生成出场顺序</button>
+            <button className="text-brand hover:underline" onClick={autoBatch}>每 N 人分为一批</button>
+            <button className="text-ink-300 hover:text-ink-500" onClick={() => setBatchSeq((m) => {
+              const n = new Map(m);
+              for (const id of contestantIds) n.set(id, { batch: 0, seq: n.get(id)?.seq ?? 0 });
+              return n;
+            })}>全部设为全员（批次 0）</button>
+            <span className="text-ink-300">批次 0 = 全员同时投票；≥1 = 分批比拼（控制台按批开放）</span>
+          </div>
+        )}
+        {mixedBatch && (
+          <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2 mb-3">⚠ 批次混合了 0 和非 0：要么全部选手为 0（全员投票），要么全部 ≥1（分批比拼），否则无法保存</p>
+        )}
         {contestantIds.size === 0 && vote.contestants.length > 0 && (
           <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2 mb-3">⚠ 未勾选选手——保存后投票页和大屏将没有任何选手</p>
         )}
@@ -245,25 +319,41 @@ function RoundEditor({ vote, round, reload, onStatus }: {
           <p className="text-sm text-ink-300">选手库为空，请先在「选手」Tab 添加</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
-            {vote.contestants.map((c) => (
-              <label key={c.id} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer ${contestantIds.has(c.id) ? "border-brand/50 bg-brand-50/50" : "border-ink-100"}`}>
-                <input type="checkbox" checked={contestantIds.has(c.id)} onChange={(e) => {
-                  setContestantIds((s) => {
-                    const n = new Set(s);
-                    if (e.target.checked) n.add(c.id); else n.delete(c.id);
-                    return n;
-                  });
-                }} />
-                <span className="num text-ink-300">{c.number}</span>
-                <span className="truncate">{c.name}</span>
-              </label>
-            ))}
+            {vote.contestants.map((c) => {
+              const checked = contestantIds.has(c.id);
+              const bs = batchSeq.get(c.id) ?? { batch: 0, seq: 0 };
+              return (
+                <div key={c.id} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${checked ? "border-brand/50 bg-brand-50/50" : "border-ink-100"}`}>
+                  <label className="flex items-center gap-2 flex-1 min-w-0 cursor-pointer">
+                    <input type="checkbox" checked={checked} onChange={(e) => {
+                      setContestantIds((s) => {
+                        const n = new Set(s);
+                        if (e.target.checked) n.add(c.id); else n.delete(c.id);
+                        return n;
+                      });
+                    }} />
+                    <span className="num text-ink-300">{c.number}</span>
+                    <span className="truncate">{c.name}</span>
+                  </label>
+                  {checked && (
+                    <span className="flex items-center gap-1 shrink-0" onClick={(e) => e.preventDefault()}>
+                      <input type="number" min={0} max={99} value={bs.batch} title="批次：0=全员，N=第 N 批"
+                        className={`w-12 h-7 rounded border text-xs text-center ${bs.batch > 0 ? "border-brand/50 text-brand font-bold" : "border-ink-200 text-ink-400"}`}
+                        onChange={(e) => patchBatchSeq(c.id, { batch: Math.max(0, Math.min(99, Number(e.target.value) || 0)) })} />
+                      <input type="number" min={0} max={9999} value={bs.seq} title="出场顺序"
+                        className="w-14 h-7 rounded border border-ink-200 text-xs text-center text-ink-500"
+                        onChange={(e) => patchBatchSeq(c.id, { seq: Math.max(0, Math.min(9999, Number(e.target.value) || 0)) })} />
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </Card>
 
       <div className="flex items-center gap-3">
-        <Button onClick={save} disabled={saving || totalWeight !== 100}>{saving ? "保存中…" : "保存轮次配置"}</Button>
+        <Button onClick={save} disabled={saving || totalWeight !== 100 || mixedBatch}>{saving ? "保存中…" : "保存轮次配置"}</Button>
         {msg && <span className={`text-sm ${msg.includes("✓") ? "text-green-600" : "text-red-500"}`}>{msg}</span>}
       </div>
 

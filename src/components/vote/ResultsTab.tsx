@@ -7,9 +7,11 @@ import { VoteDetail } from "./types";
 
 interface RoundResults {
   voteName: string; roundName: string; status: string;
+  batchMode: boolean;
   groups: { id: string; name: string; kind: string; weight: number }[];
   results: {
     rank: number; number: string; name: string; total: number;
+    batch: number;
     groups: { groupId: string; name: string; kind: string; weight: number; raw: number; contribution: number; participants: number }[];
   }[];
 }
@@ -110,7 +112,7 @@ export function ResultsTab({ vote }: { vote: VoteDetail }) {
                     <td className="px-5 py-3">
                       <span className={`inline-flex w-6 h-6 rounded-full items-center justify-center text-xs font-bold ${r.rank === 1 ? "bg-brand text-white" : r.rank <= 3 ? "bg-brand-100 text-brand-700" : "text-ink-500"}`}>{r.rank}</span>
                     </td>
-                    <td className="px-3 py-3"><span className="num text-ink-300 mr-2">{r.number}</span>{r.name}</td>
+                    <td className="px-3 py-3"><span className="num text-ink-300 mr-2">{r.number}</span>{r.name}{roundData.batchMode && <span className="ml-1.5 text-xs text-ink-300">第{r.batch}批</span>}</td>
                     {r.groups.map((d) => (
                       <td key={d.groupId} className="px-3 py-3 text-right">
                         <span className="num font-medium">{d.contribution}</span>

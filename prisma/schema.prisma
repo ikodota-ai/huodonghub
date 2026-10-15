@@ -103,6 +103,7 @@ model VoteRound {
   audienceShowResult Int      @default(0) @map("audience_show_result") @db.TinyInt
   screenGroupId      BigInt?  @map("screen_group_id") // 大屏当前群体，null=总分
   screenQrMode       Int      @default(1) @map("screen_qr_mode") @db.TinyInt
+  currentBatch       Int      @default(0) @map("current_batch") // 当前开放批次：0=全部，N=第 N 批
   countdownEndsAt    DateTime? @map("countdown_ends_at")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
@@ -131,10 +132,13 @@ model VoteContestant {
 model RoundContestant {
   roundId      BigInt @map("round_id")
   contestantId BigInt @map("contestant_id")
+  batch        Int    @default(0) // 批次：0=全员投票（默认），N=第 N 批（分批比拼）
+  seq          Int    @default(0) // 出场顺序
   round        VoteRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
   contestant   VoteContestant @relation(fields: [contestantId], references: [id], onDelete: Cascade)
 
   @@id([roundId, contestantId])
+  @@index([roundId, batch])
   @@map("round_contestants")
 }
 

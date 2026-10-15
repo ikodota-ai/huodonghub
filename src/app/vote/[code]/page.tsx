@@ -9,6 +9,8 @@ interface VotePageData {
   voteName: string;
   cover: string | null;
   roundName: string;
+  currentBatch: number;
+  batches: number[];
   phase: string;
   countdownEndsAt: string | null;
   audienceShowResult: boolean;
@@ -39,6 +41,11 @@ export default function AudienceVotePage() {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+  // 分批模式：10s 轮询，控制台切换批次后观众看到新一批选手
+  useEffect(() => {
+    const t = setInterval(() => { load(); }, 10000);
+    return () => clearInterval(t);
+  }, [load]);
 
   async function cast(contestantId: string) {
     if (voting) return;
@@ -84,6 +91,9 @@ export default function AudienceVotePage() {
         {active ? (
           <div className="mt-2 bg-brand-50 text-brand-700 text-sm rounded-lg px-3 py-2 num">
             我的剩余票数：{remaining} / {data.group!.maxVotes}
+            {data.batches.length > 0 && data.currentBatch > 0 && (
+              <span className="ml-2 text-xs">（第 {data.currentBatch} 批 / 共 {data.batches.length} 批）</span>
+            )}
           </div>
         ) : (
           <div className="mt-2 bg-ink-100 text-ink-500 text-sm rounded-lg px-3 py-2">{phaseText[data.phase] ?? "投票未开放"}</div>
