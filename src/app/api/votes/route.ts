@@ -50,7 +50,8 @@ export async function POST(req: Request) {
             groups: {
               create: [
                 { name: "专家评审", kind: "score", weight: 60, maxScore: 100, restricted: 1, sort: 1 },
-                { name: "观众评审", kind: "vote", weight: 40, maxVotes: 3, restricted: 0, sort: 3 },
+                { name: "大众评审", kind: "score", weight: 20, maxScore: 100, restricted: 1, sort: 2 },
+                { name: "观众评审", kind: "vote", weight: 20, maxVotes: 3, restricted: 0, sort: 3 },
               ],
             },
           },

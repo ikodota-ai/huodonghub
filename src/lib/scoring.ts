@@ -5,6 +5,7 @@ export interface GroupDetail {
   groupName: string;
   kind: string;
   weight: number;
+  sort: number;
   participants: number; // 该群体已投人数
   raw: number;          // score=平均分, vote=票数
   contribution: number; // 计入总分的分数
@@ -95,6 +96,7 @@ export async function computeRoundResults(roundId: bigint): Promise<ContestantRe
         groupName: g.name,
         kind: g.kind,
         weight,
+        sort: g.sort,
         participants,
         raw: Math.round(raw * 100) / 100,
         contribution: Math.round(contribution * 100) / 100,
@@ -151,7 +153,7 @@ export async function computeVoteAggregate(voteId: bigint, roundIds?: bigint[]) 
 
   const acc = new Map<string, {
     number: string; name: string; intro: string | null; image: string | null;
-    groups: Map<string, { name: string; kind: string; weights: number[]; raws: number[]; votes: number; pcts: number[]; fixedPoints: number | null }>;
+    groups: Map<string, { name: string; kind: string; sorts: number[]; weights: number[]; raws: number[]; votes: number; pcts: number[]; fixedPoints: number | null }>;
   }>();
 
   for (const r of rounds) {
@@ -164,9 +166,10 @@ export async function computeVoteAggregate(voteId: bigint, roundIds?: bigint[]) 
       for (const d of item.groups) {
         const gk = `${d.kind}|${d.groupName}`;
         if (!entry.groups.has(gk)) {
-          entry.groups.set(gk, { name: d.groupName, kind: d.kind, weights: [], raws: [], votes: 0, pcts: [], fixedPoints: null });
+          entry.groups.set(gk, { name: d.groupName, kind: d.kind, sorts: [], weights: [], raws: [], votes: 0, pcts: [], fixedPoints: null });
         }
         const g = entry.groups.get(gk)!;
+        g.sorts.push(d.sort);
         g.weights.push(d.weight);
         if (d.kind === "score") {
           // 无数据的轮次（该群体无人提交）不计入平均，避免拉低得分
@@ -186,7 +189,11 @@ export async function computeVoteAggregate(voteId: bigint, roundIds?: bigint[]) 
   const round2 = (v: number) => Math.round(v * 100) / 100;
 
   const list: AggregateItem[] = [...acc.entries()].map(([cid, e]) => {
-    const groups: MergedGroup[] = [...e.groups.entries()].map(([gk, g]) => {
+    // 群体展示顺序与轮次配置一致（各轮 sort 最小值升序），不再按名称拼音排序
+    const sortedEntries = [...e.groups.entries()].sort((a, b) =>
+      Math.min(...a[1].sorts) - Math.min(...b[1].sorts) ||
+      (a[1].kind === b[1].kind ? 0 : a[1].kind === "score" ? -1 : 1));
+    const groups: MergedGroup[] = sortedEntries.map(([gk, g]) => {
       const weight = round2(avg(g.weights));
       const scoreAvg = round2(avg(g.raws));
       const votePct = round2(avg(g.pcts));
@@ -196,8 +203,6 @@ export async function computeVoteAggregate(voteId: bigint, roundIds?: bigint[]) 
       else contribution = (votePct * weight) / 100;
       return { key: gk, name: g.name, kind: g.kind, weight, scoreAvg, votes: g.votes, votePct, fixedPoints: g.fixedPoints, contribution: round2(contribution) };
     });
-    // 群体展示顺序：评分群体在前、投票群体在后，同类按名称
-    groups.sort((a, b) => (a.kind === b.kind ? a.name.localeCompare(b.name, "zh") : a.kind === "score" ? -1 : 1));
     const total = round2(groups.reduce((s, g) => s + g.contribution, 0));
     return { contestantId: BigInt(cid), number: e.number, name: e.name, intro: e.intro, image: e.image, total, groups };
   });

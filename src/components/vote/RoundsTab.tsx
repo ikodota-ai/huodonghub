@@ -112,16 +112,18 @@ function RoundEditor({ vote, round, reload, onStatus }: {
     setSaving(true); setMsg("");
     try {
       await api(`/api/rounds/${round.id}`, { method: "PUT", body: JSON.stringify({ name, audienceShowResult: audienceShowResult ? 1 : 0 }) });
-      for (const g of groups) {
+      for (const [idx, g] of groups.entries()) {
         const payload = {
           name: g.name, kind: g.kind, weight: Number(g.weight) || 0,
           maxScore: g.maxScore, maxVotes: g.maxVotes,
           allowRepeat: g.allowRepeat ? 1 : 0, restricted: g.restricted ? 1 : 0,
         };
         if (g.enabled && g.id) {
-          await api(`/api/vote-groups/${g.id}`, { method: "PUT", body: JSON.stringify(payload) });
+          // 按界面显示顺序回写 sort，修复历史遗留的群体排序错乱（专家评审→大众评审→观众评审→自定义）
+          await api(`/api/vote-groups/${g.id}`, { method: "PUT", body: JSON.stringify({ ...payload, sort: idx + 1 }) });
         } else if (g.enabled && !g.id) {
-          await api("/api/vote-groups", { method: "POST", body: JSON.stringify({ ...payload, roundId: round.id }) });
+          const res = await api<{ id: string }>("/api/vote-groups", { method: "POST", body: JSON.stringify({ ...payload, roundId: round.id }) });
+          await api(`/api/vote-groups/${res.id}`, { method: "PUT", body: JSON.stringify({ sort: idx + 1 }) });
         } else if (!g.enabled && g.id) {
           await api(`/api/vote-groups/${g.id}`, { method: "DELETE" });
         }
