@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { api } from "@/lib/client";
+import { api, contestantImg } from "@/lib/client";
 import { Button, Card, Modal, Field, Input, Textarea, Empty } from "@/components/ui";
 import { VoteDetail, ContestantItem } from "./types";
 import { ImagePicker } from "@/components/Uploader";
@@ -61,13 +61,8 @@ export function ContestantsTab({ vote, reload }: { vote: VoteDetail; reload: () 
               <tr key={c.id} className="hover:bg-ink-50/50">
                 <td className="px-5 py-3 num">{c.number}</td>
                 <td className="px-3 py-3">
-                  {c.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={c.image.startsWith("/") && !c.image.startsWith("/api") ? `/api/media/${c.image}` : c.image} alt="" className="w-12 h-12 rounded-lg object-cover" />
-                  ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src="/img/contestant-placeholder.svg" alt="" className="w-12 h-12 rounded-lg object-cover" />
-                  )}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={contestantImg(c.image)} alt="" className="w-12 h-12 rounded-lg object-cover" />
                 </td>
                 <td className="px-3 py-3 font-medium">{c.name}</td>
                 <td className="px-3 py-3 text-ink-500 max-w-xs truncate">{c.intro}</td>
