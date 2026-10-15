@@ -97,7 +97,18 @@ export async function POST(req: Request, { params }: { params: { roundId: string
     const d = parsed.data;
 
     if (d.action === "status") {
-      await db.voteRound.update({ where: { id: roundId }, data: { status: d.status } });
+      const data: { status: string; currentBatch?: number } = { status: d.status };
+      if (d.status === "active") {
+        // 分批模式下开始投票自动定位到第一批——否则批次指针停在 0（全部开放），
+        // 观众页/评委页会看到全部选手（用户反馈"没有按分批显示"的典型原因）
+        const [round, rcs] = await Promise.all([
+          db.voteRound.findUnique({ where: { id: roundId }, select: { currentBatch: true } }),
+          db.roundContestant.findMany({ where: { roundId }, select: { batch: true } }),
+        ]);
+        const batches = [...new Set(rcs.map((rc) => rc.batch).filter((b) => b > 0))].sort((a, b) => a - b);
+        if (batches.length > 0 && (round?.currentBatch ?? 0) === 0) data.currentBatch = batches[0];
+      }
+      await db.voteRound.update({ where: { id: roundId }, data });
     } else if (d.action === "screen") {
       await db.voteRound.update({
         where: { id: roundId },

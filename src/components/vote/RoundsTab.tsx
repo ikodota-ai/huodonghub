@@ -194,7 +194,8 @@ function RoundEditor({ vote, round, reload, onStatus }: {
           })),
         }),
       });
-      setMsg("已保存 ✓");
+      const hasBatch = Array.from(contestantIds).some((id) => (batchSeq.get(id)?.batch ?? 0) > 0);
+      setMsg(hasBatch ? "已保存 ✓（分批模式：开始投票自动定位第 1 批，也可在「控制台」随时切换）" : "已保存 ✓");
       await reload();
     } catch (e) {
       setMsg((e as Error).message);
