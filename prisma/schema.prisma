@@ -99,6 +99,7 @@ model VoteRound {
   audienceEndAt      DateTime? @map("audience_end_at")
   screenShowResult   Int      @default(1) @map("screen_show_result") @db.TinyInt
   screenShowPart     Int      @default(1) @map("screen_show_part") @db.TinyInt // 大屏显示参与率
+  screenPageSize     Int      @default(0) @map("screen_page_size") // 大屏每屏选手数，0=按屏宽自动
   audienceShowResult Int      @default(0) @map("audience_show_result") @db.TinyInt
   screenGroupId      BigInt?  @map("screen_group_id") // 大屏当前群体，null=总分
   screenQrMode       Int      @default(1) @map("screen_qr_mode") @db.TinyInt

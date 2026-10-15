@@ -152,6 +152,20 @@ export function ConsoleTab({ vote, reload }: { vote: VoteDetail; reload: () => v
               <Toggle checked={round.screenQrMode === 1} onChange={(v) => action({ action: "screen", screenQrMode: v ? 1 : 0 })} />
               二维码模式（隐藏图表，引导扫码）
             </label>
+            <label className="flex items-center gap-2 text-sm">
+              每屏显示
+              <input
+                type="number" min={0} max={50}
+                key={round.screenPageSize}
+                defaultValue={round.screenPageSize}
+                className="w-16 h-8 px-2 rounded-lg border border-ink-200 text-sm num"
+                onBlur={(e) => {
+                  const v = Math.max(0, Math.min(50, parseInt(e.target.value || "0", 10) || 0));
+                  if (v !== round.screenPageSize) action({ action: "screen", screenPageSize: v });
+                }}
+              />
+              位选手<span className="text-ink-300">（0 = 按大屏宽度自动；大屏用 PgUp/PgDn 翻页，支持翻页笔）</span>
+            </label>
             <div className="flex items-center gap-2 text-sm">
               投票倒计时
               <input className="w-20 h-8 px-2 rounded-lg border border-ink-200 text-sm" value={countdownMin} onChange={(e) => setCountdownMin(e.target.value.replace(/[^\d]/g, ""))} />

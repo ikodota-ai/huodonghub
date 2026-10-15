@@ -14,6 +14,7 @@ interface ScreenState {
   screenQrMode: boolean;
   screenShowResult: boolean;
   screenShowPart: boolean;
+  screenPageSize: number;
   countdownEndsAt: string | null;
   groups: { id: string; name: string; kind: string; weight: number }[];
   participation: { groupId: string; done: number; total: number }[];
@@ -98,7 +99,7 @@ export default function ScreenPage() {
     <div className="min-h-screen bg-screenbg text-white flex flex-col overflow-hidden">
       {hintVisible && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-white/10 text-white/70 text-xs px-4 py-1.5 rounded-full">
-          F 全屏 · Q/2 二维码 · ←→ 切换群体 · R 显隐数值 · P 参与率
+          F 全屏 · Q/2 二维码 · ←→ 切换群体 · PgUp/PgDn 翻页 · R 显隐数值 · P 参与率
         </div>
       )}
       {view.qr ? (
@@ -132,16 +133,17 @@ function QrMode({ state, url, countdown, live }: { state: ScreenState; url: stri
 function ChartMode({ state, view, live, countdown }: { state: ScreenState; view: { groupId: string | null; showResult: boolean; showPart: boolean }; live: boolean; countdown: number | null }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<{ setOption: (o: unknown) => void; resize: () => void; dispatchAction: (a: unknown) => void } | null>(null);
-  const [winSize, setWinSize] = useState(15);
+  const [autoSize, setAutoSize] = useState(15);
   const [startIdx, setStartIdx] = useState(0);
   const startRef = useRef(0);
-  const dirRef = useRef(1);
-  const hoverRef = useRef(false);
 
+  // 每屏显示数：控制台 screenPageSize > 0 时用配置值，否则按屏宽自动
+  const pageSize = state.screenPageSize;
+  const winSize = pageSize > 0 ? pageSize : autoSize;
   useEffect(() => {
     const calc = () => {
       const w = containerRef.current?.clientWidth;
-      if (w) setWinSize(Math.max(8, Math.floor((w - 100) / 110)));
+      if (w) setAutoSize(Math.max(8, Math.floor((w - 100) / 110)));
     };
     calc();
     window.addEventListener("resize", calc);
@@ -180,12 +182,13 @@ function ChartMode({ state, view, live, countdown }: { state: ScreenState; view:
             const needZoom = ranked.length > winSize;
             const start = Math.min(startRef.current, Math.max(0, ranked.length - winSize));
             startRef.current = start;
+            const end = Math.min(start + winSize - 1, ranked.length - 1);
             chartRef.current!.setOption({
               backgroundColor: "transparent",
               grid: { left: 60, right: 40, top: 84, bottom: 110 },
               dataZoom: needZoom ? [
-                { type: "inside", xAxisIndex: 0, startValue: start, endValue: start + winSize - 1, zoomLock: true },
-                { type: "slider", xAxisIndex: 0, startValue: start, endValue: start + winSize - 1, zoomLock: true, bottom: 12, height: 26, showDetail: false, borderColor: "rgba(255,255,255,0.2)", backgroundColor: "rgba(255,255,255,0.06)", fillerColor: "rgba(255,255,255,0.15)", handleStyle: { color: "#fff" }, moveHandleSize: 6 },
+                { type: "inside", xAxisIndex: 0, startValue: start, endValue: end, zoomLock: true },
+                { type: "slider", xAxisIndex: 0, startValue: start, endValue: end, zoomLock: true, bottom: 12, height: 26, showDetail: false, borderColor: "rgba(255,255,255,0.2)", backgroundColor: "rgba(255,255,255,0.06)", fillerColor: "rgba(255,255,255,0.15)", handleStyle: { color: "#fff" }, moveHandleSize: 6 },
               ] : [{ type: "inside", xAxisIndex: 0, startValue: 0, endValue: Math.max(0, ranked.length - 1) }],
               xAxis: {
                 type: "category",
@@ -225,21 +228,26 @@ function ChartMode({ state, view, live, countdown }: { state: ScreenState; view:
     return () => { disposed = true; };
   }, [JSON.stringify(rows), view.showResult, winSize]);
 
-  const needAutoScroll = rows.length > winSize;
+  // 键盘翻页（PageUp/PageDown，兼容翻页笔；↑/↓ 同效；整屏翻页，末屏后再翻回首页）
+  const needPaging = rows.length > winSize;
   useEffect(() => {
-    if (!needAutoScroll) return;
-    const timer = setInterval(() => {
-      if (hoverRef.current || !chartRef.current) return;
-      const maxStart = rows.length - winSize;
-      let s = startRef.current + dirRef.current;
-      if (s >= maxStart) { s = maxStart; dirRef.current = -1; }
-      else if (s <= 0) { s = 0; dirRef.current = 1; }
+    if (!needPaging) return;
+    const onKey = (e: KeyboardEvent) => {
+      const n = rows.length;
+      let s = startRef.current;
+      if (e.key === "PageDown" || e.key === "ArrowDown") {
+        s = s + winSize >= n ? 0 : s + winSize;
+      } else if (e.key === "PageUp" || e.key === "ArrowUp") {
+        s = s - winSize < 0 ? Math.max(0, Math.floor((n - 1) / winSize) * winSize) : s - winSize;
+      } else return;
+      e.preventDefault();
       startRef.current = s;
       setStartIdx(s);
-      chartRef.current.dispatchAction({ type: "dataZoom", startValue: s, endValue: s + winSize - 1 });
-    }, 3500);
-    return () => clearInterval(timer);
-  }, [needAutoScroll, rows.length, winSize]);
+      chartRef.current?.dispatchAction({ type: "dataZoom", startValue: s, endValue: Math.min(s + winSize - 1, n - 1) });
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [needPaging, rows.length, winSize]);
 
   useEffect(() => {
     const fn = () => chartRef.current?.resize();
@@ -268,9 +276,9 @@ function ChartMode({ state, view, live, countdown }: { state: ScreenState; view:
           )}
         </div>
       </div>
-      <div className="relative flex-1 mt-4" onMouseEnter={() => { hoverRef.current = true; }} onMouseLeave={() => { hoverRef.current = false; }}>
+      <div className="relative flex-1 mt-4">
         <div ref={containerRef} className="absolute inset-0" />
-        {needAutoScroll && (
+        {needPaging && (
           <div className="absolute right-2 top-1 z-10 bg-white/10 text-white/60 text-sm px-3 py-1 rounded-full num">
             第 {startIdx + 1}–{Math.min(startIdx + winSize, ranked.length)} 位 / 共 {ranked.length} 位
           </div>

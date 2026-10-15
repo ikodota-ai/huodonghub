@@ -9,6 +9,7 @@ export interface RoundItem {
   audienceStartAt: string | null; audienceEndAt: string | null;
   screenShowResult: number; screenShowPart: number; audienceShowResult: number;
   screenGroupId: string | null; screenQrMode: number;
+  screenPageSize: number;
   contestantIds: string[];
   groups: VoteGroupItem[];
 }

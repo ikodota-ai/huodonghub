@@ -35,6 +35,7 @@ export async function GET(_req: Request, { params }: Ctx) {
         audienceStartAt: r.audienceStartAt, audienceEndAt: r.audienceEndAt,
         screenShowResult: r.screenShowResult, screenShowPart: r.screenShowPart, audienceShowResult: r.audienceShowResult,
         screenGroupId: r.screenGroupId?.toString() ?? null, screenQrMode: r.screenQrMode,
+        screenPageSize: r.screenPageSize,
         contestantIds: r.roundContestants.map((rc) => rc.contestantId.toString()),
         groups: r.groups.map((g) => ({
           id: g.id.toString(), name: g.name, kind: g.kind, weight: Number(g.weight),

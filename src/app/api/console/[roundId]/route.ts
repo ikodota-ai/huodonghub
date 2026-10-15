@@ -7,7 +7,7 @@ import { publish, screenChannel } from "@/lib/sse";
 
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("status"), status: z.enum(["pending", "active", "paused", "finished"]) }),
-  z.object({ action: z.literal("screen"), screenGroupId: z.coerce.bigint().nullable().optional(), screenQrMode: z.number().int().min(0).max(1).optional(), screenShowResult: z.number().int().min(0).max(1).optional(), screenShowPart: z.number().int().min(0).max(1).optional() }),
+  z.object({ action: z.literal("screen"), screenGroupId: z.coerce.bigint().nullable().optional(), screenQrMode: z.number().int().min(0).max(1).optional(), screenShowResult: z.number().int().min(0).max(1).optional(), screenShowPart: z.number().int().min(0).max(1).optional(), screenPageSize: z.number().int().min(0).max(50).optional() }),
   z.object({ action: z.literal("countdown"), seconds: z.number().int().min(0).max(86400) }),
   z.object({ action: z.literal("resetData") }),
 ]);
@@ -65,6 +65,7 @@ export async function POST(req: Request, { params }: { params: { roundId: string
           screenQrMode: d.screenQrMode,
           screenShowResult: d.screenShowResult,
           screenShowPart: d.screenShowPart,
+          screenPageSize: d.screenPageSize,
         },
       });
     } else if (d.action === "countdown") {

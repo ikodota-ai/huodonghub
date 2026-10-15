@@ -31,6 +31,7 @@ export async function GET(_req: Request, { params }: { params: { roundId: string
       screenQrMode: round.screenQrMode === 1,
       screenShowResult: round.screenShowResult === 1,
       screenShowPart: round.screenShowPart === 1,
+      screenPageSize: round.screenPageSize,
       countdownEndsAt: round.countdownEndsAt,
       groups: round.groups.map((g) => ({
         id: g.id.toString(), name: g.name, kind: g.kind, weight: Number(g.weight),
