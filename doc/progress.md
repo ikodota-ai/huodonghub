@@ -62,6 +62,8 @@
   - **用户管理加固**：`GET /settings/users` 补 admin-only（原任何登录账号可列用户）；角色下拉支持三档；**有内容的账号禁止删除**（提示改停用或移交）；最后一个可用 admin 禁止降级/停用/删除；停用账号会话立即失效（现有 currentUser 的 status 检查天然生效）。
   - **UI**：系统设置用户表角色改为三档下拉（行内可改），加删除按钮与角色说明文案；AdminShell 系统设置菜单本就对非 admin 隐藏。
   - **端到端验证**（编辑A/编辑B/维护M 三账号）：B 列表全空、直接访问/操作 A 的资源全 404、用户列表 403 ✓；M 可见可操作 A 的内容但系统设置 403 ✓；admin 全见 ✓；删除有内容账号被拒（文案指引停用）✓；最后 admin 降级被拒 ✓；停用 A 后其会话即刻失效 ✓；公开页面匿名照常 ✓。
+- **2026-10-15 增补 24：大屏排序模式失效修复**。用户报告"控制台选择按编号顺序大屏没反应"。根因（数据流逐环排查）：服务端 state API 已按 `screenSortMode` 正确排序，但①响应未带上 `screenSortMode` 字段，②大屏前端 `ChartMode` 拿到结果后无条件 `rows.sort(main 降序)` 重排——服务端顺序被客户端直接覆盖，选什么都没反应。修复：① state API 响应补 `screenSortMode`；② ChartMode 改为——名次（rank）始终按当前显示指标降序计算（与展示顺序解耦），展示顺序 total=按指标降序、number/seq=保持服务端顺序（按编号/出场，便于对号找选手）；chart effect 依赖改 `JSON.stringify(ranked)`。
+  - **端到端验证**：造 5 选手（编号序/出场序/得分序三者故意全错开）→ 控制台切换模式经 SSE 推送大屏自动刷新，Playwright 实拍三模式：total=03,04,02,01,05（名次1-5顺序）✓ number=01..05（01标第4名/03标第1名，名次仍按得分）✓ seq=05..01 ✓；测试数据已清理（级联删除无残留）。
 - **M1 框架**：Next.js 14 + Prisma + MySQL 5.7 脚手架；登录鉴权（users/sessions，bcrypt）；存储抽象层（本地 + 阿里云 OSS 双驱动，后台可切换、可测试连接）；部署资产 `deploy/nginx.conf`、`deploy/ecosystem.config.js`、`scripts/deploy.sh`、`scripts/backup.sh`（每日备份、保留 14 天）；`doc/deployment.md` 部署手册
 - **M2 视频分组**：分片上传（init/chunk/merge，单片 8MB）→ ffmpeg 流水线（probe → faststart → 截封面 → OSS 推送）→ 分组管理（密码、暂停访问、排序）→ 客户合集页 `/v/{code}` + 播放页（对标视频号合集）→ 分享链接/二维码 → F1.5 公众号文章链接导入（best-effort，已正确拒绝视频号链接）→ 视频抢救工作台
 - **M3 投票**：投票 CRUD（微信服务号 AppID/AppSecret 独立配置）；轮次管理（三群体勾选配置 + 权重条 =100% 校验 + 自定义群体）；选手库（CSV 导入）；评审管理（批量生成口令、专属二维码、绑定状态、重置）；评委评分页 `/judge/{token}`（专家/大众通用，大众首次扫码绑定微信）；观众投票 H5 `/vote/{code}`（限票数、防重复、openid/设备指纹双轨身份）；大屏 `/screen/{roundId}`（二维码模式 + ECharts 柱状图模式，SSE 实时推送，键盘操作）；大屏控制台（开始/暂停/结束、群体切换、二维码显隐、倒计时）；结果页（单轮 + 跨轮聚合 + CSV 导出，BOM 头 Excel 兼容）

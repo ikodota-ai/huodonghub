@@ -15,6 +15,7 @@ interface ScreenState {
   screenShowResult: boolean;
   screenShowPart: boolean;
   screenPageSize: number;
+  screenSortMode: "total" | "number" | "seq";
   countdownEndsAt: string | null;
   currentBatch: number;
   batches: number[];
@@ -161,14 +162,18 @@ function ChartMode({ state, view, live, countdown }: { state: ScreenState; view:
     : "";
 
   const rows = state.results.map((r) => {
-    if (!view.groupId) return { name: `${r.number}-${r.name}`, main: r.total, sub: "" };
+    const base = { id: r.contestantId, name: `${r.number}-${r.name}` };
+    if (!view.groupId) return { ...base, main: r.total, sub: "" };
     const d = r.groups.find((g) => g.groupId === view.groupId);
-    if (!d) return { name: `${r.number}-${r.name}`, main: 0, sub: "" };
-    if (groupInfo?.kind === "vote") return { name: `${r.number}-${r.name}`, main: d.raw, sub: `分数：${d.contribution}` };
-    return { name: `${r.number}-${r.name}`, main: d.raw, sub: `折算：${d.contribution}` };
+    if (!d) return { ...base, main: 0, sub: "" };
+    if (groupInfo?.kind === "vote") return { ...base, main: d.raw, sub: `分数：${d.contribution}` };
+    return { ...base, main: d.raw, sub: `折算：${d.contribution}` };
   });
-  rows.sort((a, b) => b.main - a.main);
-  const ranked = rows.map((r, i) => ({ ...r, rank: i + 1 }));
+  // 名次始终按当前显示指标降序计算（与展示顺序解耦，避免按编号展示时名次标错）
+  const byScore = [...rows].sort((a, b) => b.main - a.main);
+  const rankOf = new Map(byScore.map((r, i) => [r.id, i + 1] as const));
+  // 展示顺序：total=按指标降序；number/seq=保持服务端返回顺序（按编号/出场），便于对号找选手
+  const ranked = (state.screenSortMode === "total" ? byScore : rows).map((r) => ({ ...r, rank: rankOf.get(r.id) ?? 0 }));
 
   useEffect(() => {
     let disposed = false;
@@ -228,7 +233,7 @@ function ChartMode({ state, view, live, countdown }: { state: ScreenState; view:
       });
     });
     return () => { disposed = true; };
-  }, [JSON.stringify(rows), view.showResult, winSize]);
+  }, [JSON.stringify(ranked), view.showResult, winSize]);
 
   // 键盘翻页（PageUp/PageDown，兼容翻页笔；↑/↓ 同效；整屏翻页，末屏后再翻回首页）
   const needPaging = rows.length > winSize;

@@ -63,6 +63,7 @@ export async function GET(_req: Request, { params }: { params: { roundId: string
       screenShowResult: round.screenShowResult === 1,
       screenShowPart: round.screenShowPart === 1,
       screenPageSize: round.screenPageSize,
+      screenSortMode: round.screenSortMode,
       countdownEndsAt: round.countdownEndsAt,
       currentBatch,
       batches,
