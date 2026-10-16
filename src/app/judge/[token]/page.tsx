@@ -168,7 +168,7 @@ export default function JudgePage() {
         <h1 className="font-bold leading-snug">{data.voteName} · {data.roundName}</h1>
         <p className="text-sm text-ink-500 mt-0.5">
           {data.groupName} · 评审：{data.voterName}
-          {batchMode && data.currentBatch > 0 && (
+          {data.batches.length > 1 && data.currentBatch > 0 && (
             <span className="ml-2 inline-flex items-center rounded-full bg-brand/10 text-brand px-2 py-0.5 text-xs font-bold">第 {data.currentBatch} 批 / 共 {data.batches.length} 批</span>
           )}
         </p>

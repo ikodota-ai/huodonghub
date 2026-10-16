@@ -91,7 +91,7 @@ export default function AudienceVotePage() {
         {active ? (
           <div className="mt-2 bg-brand-50 text-brand-700 text-sm rounded-lg px-3 py-2 num">
             {data.group!.votePeriod === "daily" ? "今日剩余票数" : "我的剩余票数"}：{remaining} / {data.group!.maxVotes}
-            {data.batches.length > 0 && data.currentBatch > 0 && (
+            {data.batches.length > 1 && data.currentBatch > 0 && (
               <span className="ml-2 text-xs">（第 {data.currentBatch} 批 / 共 {data.batches.length} 批）</span>
             )}
           </div>
