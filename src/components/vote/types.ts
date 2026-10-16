@@ -3,6 +3,7 @@ export interface VoteGroupItem {
   maxScore: number; maxVotes: number; allowRepeat: number;
   fixedPoints: number | null; restricted: number; sort: number;
   avgMode: "scorers" | "roster"; pctMode: "batch" | "round";
+  votePeriod: "total" | "daily";
   voterCount: number;
 }
 

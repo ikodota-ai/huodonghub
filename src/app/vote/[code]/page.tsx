@@ -16,7 +16,7 @@ interface VotePageData {
   audienceShowResult: boolean;
   wxConfigured: boolean;
   identified: boolean;
-  group: { id: string; maxVotes: number; allowRepeat: boolean; used: number; votedContestantIds: string[] } | null;
+  group: { id: string; maxVotes: number; votePeriod: string; allowRepeat: boolean; used: number; votedContestantIds: string[] } | null;
   contestants: { id: string; number: string; name: string; intro: string | null; image: string | null }[];
 }
 
@@ -90,7 +90,7 @@ export default function AudienceVotePage() {
         </div>
         {active ? (
           <div className="mt-2 bg-brand-50 text-brand-700 text-sm rounded-lg px-3 py-2 num">
-            我的剩余票数：{remaining} / {data.group!.maxVotes}
+            {data.group!.votePeriod === "daily" ? "今日剩余票数" : "我的剩余票数"}：{remaining} / {data.group!.maxVotes}
             {data.batches.length > 0 && data.currentBatch > 0 && (
               <span className="ml-2 text-xs">（第 {data.currentBatch} 批 / 共 {data.batches.length} 批）</span>
             )}
@@ -138,7 +138,11 @@ export default function AudienceVotePage() {
       </div>
 
       {remaining === 0 && data.group && (
-        <p className="text-center text-sm text-ink-500 pb-4">您已投完全部 {data.group.maxVotes} 票，感谢参与！</p>
+        <p className="text-center text-sm text-ink-500 pb-4">
+          {data.group.votePeriod === "daily"
+            ? `您今天的 ${data.group.maxVotes} 票已投完，明天还可以继续投！`
+            : `您已投完全部 ${data.group.maxVotes} 票，感谢参与！`}
+        </p>
       )}
       {data.audienceShowResult && (
         <p className="text-center pb-6">

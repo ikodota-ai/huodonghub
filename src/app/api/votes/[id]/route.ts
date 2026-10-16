@@ -45,7 +45,7 @@ export async function GET(_req: Request, { params }: Ctx) {
           id: g.id.toString(), name: g.name, kind: g.kind, weight: Number(g.weight),
           maxScore: g.maxScore, maxVotes: g.maxVotes, allowRepeat: g.allowRepeat,
           fixedPoints: g.fixedPoints == null ? null : Number(g.fixedPoints),
-          restricted: g.restricted, sort: g.sort, avgMode: g.avgMode, pctMode: g.pctMode,
+          restricted: g.restricted, sort: g.sort, avgMode: g.avgMode, pctMode: g.pctMode, votePeriod: g.votePeriod,
           voterCount: g._count.voters,
         })),
       })),

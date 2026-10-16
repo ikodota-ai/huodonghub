@@ -5,6 +5,7 @@ import { fallbackVoterKey, clientIp } from "@/lib/fingerprint";
 import { publish, screenChannel } from "@/lib/sse";
 import { wxOpenidFromCookies } from "@/lib/wx-openid";
 import { getSetting, getWxConfigFor } from "@/lib/settings";
+import { chinaDayStart } from "@/lib/day";
 
 type Ctx = { params: { code: string } };
 
@@ -56,8 +57,10 @@ export async function GET(req: Request, { params }: Ctx) {
     let used = 0;
     let votedContestantIds: string[] = [];
     if (group && voterKey) {
+      // 限票周期：daily=只统计今天的票（东八区日历日），total=累计全部
+      const dayStart = group.votePeriod === "daily" ? chinaDayStart() : null;
       const entries = await db.voteEntry.findMany({ where: { groupId: group.id, voterKey } });
-      const scoped = entries.filter((e) => inScope(e.contestantId.toString()));
+      const scoped = entries.filter((e) => inScope(e.contestantId.toString()) && (!dayStart || e.createdAt >= dayStart));
       used = scoped.length;
       votedContestantIds = scoped.map((e) => e.contestantId.toString());
     }
@@ -74,7 +77,7 @@ export async function GET(req: Request, { params }: Ctx) {
       wxConfigured: !!(await getWxConfigFor(round.vote)),
       identified: !!openid,
       group: group ? {
-        id: group.id.toString(), maxVotes: group.maxVotes,
+        id: group.id.toString(), maxVotes: group.maxVotes, votePeriod: group.votePeriod,
         allowRepeat: group.allowRepeat === 1, used, votedContestantIds,
       } : null,
       contestants: round.roundContestants
@@ -117,9 +120,15 @@ export async function POST(req: Request, { params }: Ctx) {
     if (await ipThrottleHit(group.id, ip)) return fail("当前网络投票过于频繁，请稍后再试", 429);
 
     const scopeIds = new Set(scopeContestants.map((rc) => rc.contestantId.toString()));
+    // 限票周期：daily=只统计今天的票（跨天自动重置配额与"不可重复投同一选手"）
+    const dayStart = group.votePeriod === "daily" ? chinaDayStart() : null;
     const allEntries = await db.voteEntry.findMany({ where: { groupId: group.id, voterKey } });
-    const usedEntries = allEntries.filter((e) => scopeIds.has(e.contestantId.toString()));
-    if (usedEntries.length >= group.maxVotes) return fail(currentBatch > 0 ? "您本批的票数已用完" : "您的票数已用完", 403);
+    const usedEntries = allEntries.filter((e) => scopeIds.has(e.contestantId.toString()) && (!dayStart || e.createdAt >= dayStart));
+    if (usedEntries.length >= group.maxVotes) {
+      return fail(group.votePeriod === "daily"
+        ? (currentBatch > 0 ? "您本批今天的票数已用完" : "您今天的票数已用完，明天可继续投")
+        : (currentBatch > 0 ? "您本批的票数已用完" : "您的票数已用完"), 403);
+    }
     if (group.allowRepeat !== 1 && usedEntries.some((e) => e.contestantId === contestantId)) {
       return fail("不可重复投同一选手", 403);
     }
