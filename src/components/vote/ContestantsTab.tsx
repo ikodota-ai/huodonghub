@@ -1,15 +1,17 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, contestantImg } from "@/lib/client";
-import { Button, Card, Modal, Field, Input, Textarea, Empty } from "@/components/ui";
+import { Button, Card, Modal, Field, Input, Textarea, Empty, Badge } from "@/components/ui";
 import { VoteDetail, ContestantItem } from "./types";
 import { ImagePicker } from "@/components/Uploader";
 import { useDialogs } from "@/components/ui/dialogs";
+import type { ContestantDetail } from "./ResultsTab";
 
 export function ContestantsTab({ vote, reload }: { vote: VoteDetail; reload: () => void }) {
   const { confirm, toast, dialogNode } = useDialogs();
   const [editing, setEditing] = useState<ContestantItem | "new" | null>(null);
+  const [transcriptFor, setTranscriptFor] = useState<ContestantItem | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -69,6 +71,7 @@ export function ContestantsTab({ vote, reload }: { vote: VoteDetail; reload: () 
                 <td className="px-3 py-3 font-medium">{c.name}</td>
                 <td className="px-3 py-3 text-ink-500 max-w-xs truncate">{c.intro}</td>
                 <td className="px-3 py-3 text-right">
+                  <Button variant="ghost" size="sm" onClick={() => setTranscriptFor(c)}>成绩单</Button>
                   <Button variant="ghost" size="sm" onClick={() => setEditing(c)}>编辑</Button>
                   <Button variant="ghost" size="sm" className="hover:text-red-500" onClick={() => del(c)}>删除</Button>
                 </td>
@@ -97,6 +100,7 @@ export function ContestantsTab({ vote, reload }: { vote: VoteDetail; reload: () 
           <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={(e) => e.target.files?.[0] && importCsv(e.target.files[0])} />
         </div>
       </Modal>
+      {transcriptFor && <TranscriptModal voteId={vote.id} contestant={transcriptFor} onClose={() => setTranscriptFor(null)} />}
       {dialogNode}
     </Card>
   );
@@ -128,6 +132,58 @@ function ContestantModal({ vote, item, onClose, reload }: { vote: VoteDetail; it
           reload();
         }}>保存</Button>
       </div>
+    </Modal>
+  );
+}
+
+function TranscriptModal({ voteId, contestant, onClose }: { voteId: string; contestant: ContestantItem; onClose: () => void }) {
+  const [data, setData] = useState<ContestantDetail | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    api<ContestantDetail>(`/api/results/vote/${voteId}/contestant/${contestant.id}`).then(setData).catch((e) => setError((e as Error).message));
+  }, [voteId, contestant.id]);
+  return (
+    <Modal open onClose={onClose} title={`${contestant.number} ${contestant.name} · 各轮成绩单`} width="max-w-2xl">
+      {error && <p className="text-sm text-red-500">{error}</p>}
+      {!data && !error && <p className="text-sm text-ink-300 py-6 text-center">加载中…</p>}
+      {data && (
+        <div className="space-y-3">
+          {data.rounds.length === 0 && <Empty text="还没有轮次" />}
+          {data.rounds.map((r) => (
+            <div key={r.roundId} className="bg-ink-50 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="font-medium text-sm">{r.roundName}</p>
+                {r.participated
+                  ? <p className="text-sm num font-bold text-brand-700">轮总分 {r.total}</p>
+                  : <Badge>未参赛</Badge>}
+              </div>
+              {r.participated && (
+                <div className="space-y-2">
+                  {r.groups.map((g) => (
+                    <div key={g.name} className="text-sm">
+                      <div className="flex items-baseline gap-x-2">
+                        <span className="text-ink-500 w-32 shrink-0">{g.name}（{g.weight}%）</span>
+                        <span className="num font-semibold w-14">{g.contribution}</span>
+                        <span className="text-xs text-ink-300 num">
+                          {g.kind === "vote"
+                            ? (g.fixedPoints != null ? `${g.raw}票 × ${g.fixedPoints}分` : `${g.raw}票/${g.participants}人`)
+                            : `均分 ${g.raw} · ${g.participants}人`}
+                        </span>
+                        {r.batch > 0 && <span className="ml-auto text-xs text-ink-300">第{r.batch}批</span>}
+                      </div>
+                      {g.judges.length > 0 && (
+                        <p className="text-xs text-ink-400 num mt-0.5 pl-32">
+                          {g.judges.map((j) => `${j.name} ${j.score}（${j.share}）`).join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </Modal>
   );
 }

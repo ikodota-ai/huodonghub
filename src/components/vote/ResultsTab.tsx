@@ -26,7 +26,7 @@ interface Aggregate {
 }
 
 // 选手跨轮成绩单：每一轮各群体具体分数（原始值+折算），评分群体含逐评委明细
-interface ContestantDetail {
+export interface ContestantDetail {
   contestant: { id: string; number: string; name: string; image: string | null };
   rounds: {
     roundId: string; roundName: string; participated: boolean; batch: number; total: number | null;

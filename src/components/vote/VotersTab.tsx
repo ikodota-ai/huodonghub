@@ -22,6 +22,7 @@ export function VotersTab({ vote }: { vote: VoteDetail }) {
   const [addOpen, setAddOpen] = useState(false);
   const [names, setNames] = useState("");
   const [printMode, setPrintMode] = useState(false);
+  const [recordsFor, setRecordsFor] = useState<Voter | null>(null);
 
   const group = restrictedGroups[sel];
 
@@ -102,6 +103,7 @@ export function VotersTab({ vote }: { vote: VoteDetail }) {
                     {v.hasVoted === 1 ? <Badge tone="blue">已提交</Badge> : <Badge>未提交</Badge>}
                   </td>
                   <td className="px-3 py-3 text-right">
+                    <Button variant="ghost" size="sm" onClick={() => setRecordsFor(v)}>记录</Button>
                     <Button variant="ghost" size="sm" onClick={() => copyText(`${location.origin}/judge/${v.token}`)}>复制链接</Button>
                     <Button variant="ghost" size="sm" onClick={() => resetVoter(v)}>重置</Button>
                     <Button variant="ghost" size="sm" className="hover:text-red-500" onClick={() => del(v)}>删除</Button>
@@ -144,6 +146,7 @@ export function VotersTab({ vote }: { vote: VoteDetail }) {
           </div>
         </div>
       )}
+      {recordsFor && <VoterRecordsModal voter={recordsFor} onClose={() => setRecordsFor(null)} />}
       {dialogNode}
     </div>
   );
@@ -161,5 +164,73 @@ function VoterQr({ name, token }: { name: string; token: string }) {
         </div>
       </Modal>
     </>
+  );
+}
+
+interface VoterRecords {
+  voter: { id: string; name: string; hasVoted: number };
+  group: { id: string; name: string; kind: string; weight: number; roundName: string };
+  entries: { contestantId: string; number: string; name: string; batch: number; score?: number | null; share?: number | null; picked?: boolean }[];
+}
+
+function VoterRecordsModal({ voter, onClose }: { voter: Voter; onClose: () => void }) {
+  const [data, setData] = useState<VoterRecords | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    api<VoterRecords>(`/api/voters/${voter.id}/records`).then(setData).catch((e) => setError((e as Error).message));
+  }, [voter.id]);
+  const isScore = data?.group.kind === "score";
+  return (
+    <Modal open onClose={onClose} title={`${voter.name} 的${isScore ? "评分" : "投票"}记录`} width="max-w-xl">
+      {error && <p className="text-sm text-red-500">{error}</p>}
+      {!data && !error && <p className="text-sm text-ink-300 py-6 text-center">加载中…</p>}
+      {data && (
+        <>
+          <p className="text-xs text-ink-500 mb-3 flex items-center gap-2">
+            {data.group.roundName} · {data.group.name}（权重 {data.group.weight}%，{isScore ? "评分制" : "投票制"}）
+            {data.voter.hasVoted === 1 ? <Badge tone="blue">已提交</Badge> : <Badge>未提交</Badge>}
+          </p>
+          {data.entries.length === 0 ? <Empty text="本轮还没有选手" /> : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-ink-300 text-xs border-b border-ink-100">
+                  <th className="py-2 pr-3 font-medium w-14">编号</th>
+                  <th className="py-2 pr-3 font-medium">选手</th>
+                  {isScore ? (
+                    <>
+                      <th className="py-2 px-2 font-medium text-right">打分</th>
+                      <th className="py-2 pl-2 font-medium text-right">折算</th>
+                    </>
+                  ) : (
+                    <th className="py-2 pl-2 font-medium text-right">是否勾选</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ink-100">
+                {data.entries.map((e) => (
+                  <tr key={e.contestantId}>
+                    <td className="py-2.5 pr-3 num text-ink-300">{e.number}</td>
+                    <td className="py-2.5 pr-3">
+                      {e.name}
+                      {e.batch > 0 && <span className="ml-1 text-xs text-ink-300">第{e.batch}批</span>}
+                    </td>
+                    {isScore ? (
+                      <>
+                        <td className="py-2.5 px-2 text-right num font-medium">
+                          {e.score != null ? `${e.score} 分` : <span className="text-ink-300">未评</span>}
+                        </td>
+                        <td className="py-2.5 pl-2 text-right num text-ink-500">{e.share != null ? e.share : "—"}</td>
+                      </>
+                    ) : (
+                      <td className="py-2.5 pl-2 text-right">{e.picked ? <Badge tone="green">✓ 已选</Badge> : <span className="text-ink-300 text-xs">—</span>}</td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
+      )}
+    </Modal>
   );
 }
