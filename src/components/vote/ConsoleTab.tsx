@@ -5,8 +5,10 @@ import { copyText } from "@/lib/clipboard";
 import { api } from "@/lib/client";
 import { Button, Card, Badge, Toggle, QrImage } from "@/components/ui";
 import { VoteDetail, ROUND_STATUS } from "./types";
+import { useDialogs } from "@/components/ui/dialogs";
 
 export function ConsoleTab({ vote, reload }: { vote: VoteDetail; reload: () => void }) {
+  const { confirm, toast, dialogNode } = useDialogs();
   const [roundId, setRoundId] = useState<string | null>(vote.rounds[0]?.id ?? null);
   const round = vote.rounds.find((r) => r.id === roundId) ?? vote.rounds[0];
   const [countdownMin, setCountdownMin] = useState("5");
@@ -74,13 +76,12 @@ export function ConsoleTab({ vote, reload }: { vote: VoteDetail; reload: () => v
               : "清空本轮全部评分与投票数据（彩排后重置）"
             }>
               <Button variant="ghost" className="hover:text-red-500" disabled={round.status === "active" || round.status === "finished"} onClick={async () => {
-                if (!confirm(`清空「${round.name}」的全部评分与投票数据？\n（保留轮次配置、选手名单与评审绑定，用于彩排后重置）`)) return;
-                if (!confirm("再次确认：清空后不可恢复，确定继续？")) return;
+                if (!(await confirm(`清空「${round.name}」的全部评分与投票数据？\n保留轮次配置、选手名单与评审绑定（用于彩排后重置）。\n清空后不可恢复。`, { title: "清空本轮数据", confirmText: "确认清空", danger: true }))) return;
                 try {
                   await action({ action: "resetData" });
-                  alert("已清空本轮数据");
+                  toast("已清空本轮数据");
                 } catch (e) {
-                  alert((e as Error).message);
+                  toast((e as Error).message);
                 }
               }}>清空数据</Button>
             </span>
@@ -234,6 +235,7 @@ export function ConsoleTab({ vote, reload }: { vote: VoteDetail; reload: () => v
           <MiniPreview roundId={round.id} />
         </div>
       </Card>
+      {dialogNode}
     </div>
   );
 }

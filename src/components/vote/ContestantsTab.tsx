@@ -5,14 +5,16 @@ import { api, contestantImg } from "@/lib/client";
 import { Button, Card, Modal, Field, Input, Textarea, Empty } from "@/components/ui";
 import { VoteDetail, ContestantItem } from "./types";
 import { ImagePicker } from "@/components/Uploader";
+import { useDialogs } from "@/components/ui/dialogs";
 
 export function ContestantsTab({ vote, reload }: { vote: VoteDetail; reload: () => void }) {
+  const { confirm, toast, dialogNode } = useDialogs();
   const [editing, setEditing] = useState<ContestantItem | "new" | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function del(c: ContestantItem) {
-    if (!confirm(`确定删除选手「${c.name}」？相关票数数据将一并删除。`)) return;
+    if (!(await confirm(`确定删除选手「${c.name}」？相关票数数据将一并删除。`, { confirmText: "删除", danger: true }))) return;
     await api(`/api/contestants/${c.id}`, { method: "DELETE" });
     reload();
   }
@@ -24,13 +26,13 @@ export function ContestantsTab({ vote, reload }: { vote: VoteDetail; reload: () 
       complete: async (res) => {
         const rows = res.data.filter((r) => r[0] && r[0] !== "名称");
         const items = rows.map((r) => ({ name: String(r[0]).trim(), intro: String(r[1] ?? "").trim(), image: String(r[2] ?? "").trim() }));
-        if (items.length === 0) { alert("CSV 中没有有效数据"); return; }
+        if (items.length === 0) { toast("CSV 中没有有效数据"); return; }
         const result = await api<{ imported: number; imageOk: number; imageFail: number }>("/api/contestants/import", { method: "POST", body: JSON.stringify({ voteId: vote.id, items }) });
         setImportOpen(false);
         reload();
-        alert(`已导入 ${result.imported} 位选手${result.imageOk + result.imageFail > 0 ? `；照片成功 ${result.imageOk} 张${result.imageFail > 0 ? `、失败 ${result.imageFail} 张（可稍后单独补传）` : ""}` : ""}`);
+        toast(`已导入 ${result.imported} 位选手${result.imageOk + result.imageFail > 0 ? `；照片成功 ${result.imageOk} 张${result.imageFail > 0 ? `、失败 ${result.imageFail} 张（可稍后单独补传）` : ""}` : ""}`);
       },
-      error: () => alert("CSV 解析失败"),
+      error: () => toast("CSV 解析失败"),
     });
   }
 
@@ -95,6 +97,7 @@ export function ContestantsTab({ vote, reload }: { vote: VoteDetail; reload: () 
           <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={(e) => e.target.files?.[0] && importCsv(e.target.files[0])} />
         </div>
       </Modal>
+      {dialogNode}
     </Card>
   );
 }

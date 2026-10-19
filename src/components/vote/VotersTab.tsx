@@ -5,6 +5,7 @@ import { copyText } from "@/lib/clipboard";
 import { api } from "@/lib/client";
 import { Button, Card, Badge, Modal, Field, Empty, QrImage, Toggle } from "@/components/ui";
 import { VoteDetail } from "./types";
+import { useDialogs } from "@/components/ui/dialogs";
 
 interface Voter {
   id: string; name: string; token: string; needBind: number;
@@ -12,6 +13,7 @@ interface Voter {
 }
 
 export function VotersTab({ vote }: { vote: VoteDetail }) {
+  const { confirm, dialogNode } = useDialogs();
   const restrictedGroups = vote.rounds.flatMap((r) =>
     r.groups.filter((g) => g.restricted === 1).map((g) => ({ roundId: r.id, roundName: r.name, groupId: g.id, groupName: g.name }))
   );
@@ -38,13 +40,13 @@ export function VotersTab({ vote }: { vote: VoteDetail }) {
   }
 
   async function resetVoter(v: Voter) {
-    if (!confirm(`重置「${v.name}」的绑定与提交状态？`)) return;
+    if (!(await confirm(`重置「${v.name}」的绑定与提交状态？`, { confirmText: "重置", danger: true }))) return;
     await api(`/api/voters/${v.id}/reset`, { method: "POST" });
     load();
   }
 
   async function del(v: Voter) {
-    if (!confirm(`删除评审「${v.name}」？`)) return;
+    if (!(await confirm(`删除评审「${v.name}」？`, { confirmText: "删除", danger: true }))) return;
     await api(`/api/voters/${v.id}`, { method: "DELETE" });
     load();
   }
@@ -142,6 +144,7 @@ export function VotersTab({ vote }: { vote: VoteDetail }) {
           </div>
         </div>
       )}
+      {dialogNode}
     </div>
   );
 }

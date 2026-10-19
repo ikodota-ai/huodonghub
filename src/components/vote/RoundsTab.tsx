@@ -4,6 +4,7 @@ import { useState } from "react";
 import { copyText } from "@/lib/clipboard";
 import { api } from "@/lib/client";
 import { Button, Card, Badge, Field, Input, Toggle, Modal } from "@/components/ui";
+import { useDialogs } from "@/components/ui/dialogs";
 import { VoteDetail, RoundItem, ROUND_STATUS } from "./types";
 
 interface GroupDraft {
@@ -30,11 +31,12 @@ const PRESETS: { key: string; label: string; draft: Omit<GroupDraft, "enabled"> 
 ];
 
 export function RoundsTab({ vote, reload }: { vote: VoteDetail; reload: () => void }) {
+  const { prompt, dialogNode } = useDialogs();
   const [selectedId, setSelectedId] = useState<string | null>(vote.rounds[0]?.id ?? null);
   const selected = vote.rounds.find((r) => r.id === selectedId) ?? vote.rounds[0];
 
   async function addRound() {
-    const name = prompt("轮次名称", `第${vote.rounds.length + 1}轮`);
+    const name = await prompt("轮次名称", `第${vote.rounds.length + 1}轮`, { title: "新增轮次" });
     if (!name) return;
     const res = await api<{ id: string }>("/api/rounds", { method: "POST", body: JSON.stringify({ voteId: vote.id, name }) });
     await reload();
@@ -65,6 +67,7 @@ export function RoundsTab({ vote, reload }: { vote: VoteDetail; reload: () => vo
         <p className="text-xs text-ink-300 mt-2 px-1">新轮次自动复制上轮群体与参赛名单</p>
       </Card>
       {selected && <RoundEditor key={selected.id} vote={vote} round={selected} reload={reload} onStatus={setStatus} />}
+      {dialogNode}
     </div>
   );
 }
@@ -73,6 +76,7 @@ function RoundEditor({ vote, round, reload, onStatus }: {
   vote: VoteDetail; round: RoundItem; reload: () => Promise<void> | void;
   onStatus: (r: RoundItem, s: string) => void;
 }) {
+  const { prompt, toast, dialogNode } = useDialogs();
   const [name, setName] = useState(round.name);
   const [groups, setGroups] = useState<GroupDraft[]>(() => {
     const byName = new Map(round.groups.map((g) => [g.name, g]));
@@ -144,11 +148,11 @@ function RoundEditor({ vote, round, reload, onStatus }: {
   }
 
   // 按出场顺序每 N 人分为一批（批次 1..k）
-  function autoBatch() {
-    const input = prompt("每批人数（按出场顺序依次分组）", "5");
+  async function autoBatch() {
+    const input = await prompt("每批人数（按出场顺序依次分组）", "5", { title: "每 N 人分为一批", placeholder: "如 5" });
     if (!input) return;
     const per = Number(input);
-    if (!Number.isInteger(per) || per < 1) { alert("请输入正整数"); return; }
+    if (!Number.isInteger(per) || per < 1) { toast("请输入正整数"); return; }
     setBatchSeq((m) => {
       const n = new Map(m);
       const ordered = vote.contestants
@@ -431,6 +435,7 @@ function RoundEditor({ vote, round, reload, onStatus }: {
           }}>确认删除</Button>
         </div>
       </Modal>
+      {dialogNode}
     </div>
   );
 }

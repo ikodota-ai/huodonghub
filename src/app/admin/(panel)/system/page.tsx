@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, fmtBytes, fmtTime } from "@/lib/client";
 import { Button, Card, Modal, Field, Input, Badge, Toggle, Skeleton } from "@/components/ui";
+import { useDialogs } from "@/components/ui/dialogs";
 
 interface UserRow { id: string; username: string; name: string; role: string; status: number }
 interface StorageCfg {
@@ -13,6 +14,7 @@ interface StorageCfg {
 interface WxCfg { appid: string; secret: string; name: string }
 
 export default function SystemPage() {
+  const { confirm, prompt, toast, dialogNode } = useDialogs();
   const [users, setUsers] = useState<UserRow[] | null>(null);
   const [storage, setStorage] = useState<StorageCfg | null>(null);
   const [backup, setBackup] = useState<{ last: string | null } | null>(null);
@@ -64,7 +66,7 @@ export default function SystemPage() {
                       try {
                         await api(`/api/settings/users/${u.id}`, { method: "PUT", body: JSON.stringify({ role: e.target.value }) });
                         load();
-                      } catch (err) { alert((err as Error).message); }
+                      } catch (err) { toast((err as Error).message); }
                     }}
                   >
                     <option value="editor">编辑</option>
@@ -75,21 +77,21 @@ export default function SystemPage() {
                 <td className="px-3 py-3">{u.status === 1 ? <Badge tone="green">启用</Badge> : <Badge>停用</Badge>}</td>
                 <td className="px-3 py-3 text-right">
                   <Button variant="ghost" size="sm" onClick={async () => {
-                    const pwd = prompt(`为「${u.name}」设置新密码（至少 6 位）`);
-                    if (pwd) { await api(`/api/settings/users/${u.id}`, { method: "PUT", body: JSON.stringify({ password: pwd }) }); alert("已重置"); }
+                    const pwd = await prompt(`为「${u.name}」设置新密码（至少 6 位）`, "", { title: "重置密码", password: true, placeholder: "输入新密码" });
+                    if (pwd) { await api(`/api/settings/users/${u.id}`, { method: "PUT", body: JSON.stringify({ password: pwd }) }); toast("密码已重置"); }
                   }}>重置密码</Button>
                   <Button variant="ghost" size="sm" onClick={async () => {
                     try {
                       await api(`/api/settings/users/${u.id}`, { method: "PUT", body: JSON.stringify({ status: u.status === 1 ? 0 : 1 }) });
                       load();
-                    } catch (err) { alert((err as Error).message); }
+                    } catch (err) { toast((err as Error).message); }
                   }}>{u.status === 1 ? "停用" : "启用"}</Button>
                   <Button variant="ghost" size="sm" className="hover:text-red-500" onClick={async () => {
-                    if (!confirm(`确定删除账号「${u.name}」？`)) return;
+                    if (!(await confirm(`确定删除账号「${u.name}」？`, { confirmText: "删除", danger: true }))) return;
                     try {
                       await api(`/api/settings/users/${u.id}`, { method: "DELETE" });
                       load();
-                    } catch (err) { alert((err as Error).message); }
+                    } catch (err) { toast((err as Error).message); }
                   }}>删除</Button>
                 </td>
               </tr>
@@ -112,10 +114,10 @@ export default function SystemPage() {
         <Button variant="secondary" size="sm" onClick={async () => {
           try {
             const res = await api<{ at: string; files: string[] }>("/api/settings/backup", { method: "POST" });
-            alert(`备份完成：\n${res.files.join("\n")}`);
+            toast(`备份完成：${res.files.length} 个文件`);
             load();
           } catch (e) {
-            alert(`备份失败：${(e as Error).message}（服务器需安装 mysqldump 与 tar）`);
+            toast(`备份失败：${(e as Error).message}（服务器需安装 mysqldump 与 tar）`);
           }
         }}>立即备份</Button>
       </Card>
@@ -123,6 +125,7 @@ export default function SystemPage() {
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title="新增用户">
         <AddUserForm onDone={() => { setAddOpen(false); load(); }} />
       </Modal>
+      {dialogNode}
     </div>
   );
 }
@@ -160,6 +163,7 @@ function AddUserForm({ onDone }: { onDone: () => void }) {
 }
 
 function WxCard({ wx, reload }: { wx: WxCfg; reload: () => void }) {
+  const { confirm, dialogNode } = useDialogs();
   const [appid, setAppid] = useState(wx.appid);
   const [secret, setSecret] = useState(wx.secret);
   const [name, setName] = useState(wx.name);
@@ -186,7 +190,7 @@ function WxCard({ wx, reload }: { wx: WxCfg; reload: () => void }) {
         }}>保存</Button>
         {appid && (
           <Button variant="ghost" size="sm" onClick={async () => {
-            if (!confirm("清空全局默认公众号？未单独配置的投票将回退为设备指纹模式。")) return;
+            if (!(await confirm("清空全局默认公众号？未单独配置的投票将回退为设备指纹模式。", { confirmText: "清空", danger: true }))) return;
             await api("/api/settings/wx", { method: "PUT", body: JSON.stringify({ appid: "", secret: "", name: "" }) });
             setAppid(""); setSecret(""); setName("");
             reload();
@@ -194,6 +198,7 @@ function WxCard({ wx, reload }: { wx: WxCfg; reload: () => void }) {
         )}
         {msg && <span className="text-sm text-green-600">{msg}</span>}
       </div>
+      {dialogNode}
     </Card>
   );
 }

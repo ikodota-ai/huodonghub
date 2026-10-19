@@ -5,6 +5,7 @@ import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { api } from "@/lib/client";
 import { Button, Field, Input, Modal } from "./ui";
+import { useDialogs } from "./ui/dialogs";
 
 const NAV = [
   { href: "/admin", label: "仪表盘", icon: "▤", exact: true },
@@ -62,6 +63,7 @@ export function AdminShell({ children, userName, role }: { children: React.React
 }
 
 function ChangePwModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { toast, dialogNode } = useDialogs();
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -92,10 +94,11 @@ function ChangePwModal({ open, onClose }: { open: boolean; onClose: () => void }
           try {
             await api("/api/auth/password", { method: "POST", body: JSON.stringify({ oldPassword, newPassword }) });
             reset(); onClose();
-            alert("密码已修改");
+            toast("密码已修改");
           } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
         }}>确认修改</Button>
       </div>
+      {dialogNode}
     </Modal>
   );
 }

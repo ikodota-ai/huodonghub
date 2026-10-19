@@ -12,6 +12,7 @@ import { VotersTab } from "@/components/vote/VotersTab";
 import { ConsoleTab } from "@/components/vote/ConsoleTab";
 import { ResultsTab } from "@/components/vote/ResultsTab";
 import { ImagePicker } from "@/components/Uploader";
+import { useDialogs } from "@/components/ui/dialogs";
 
 export default function VoteDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -71,6 +72,7 @@ export default function VoteDetailPage() {
 }
 
 function VoteEditModal({ vote, open, onClose, reload }: { vote: VoteDetail; open: boolean; onClose: () => void; reload: () => void }) {
+  const { confirm, dialogNode } = useDialogs();
   const [name, setName] = useState(vote.name);
   const [description, setDescription] = useState(vote.description || "");
   const [cover, setCover] = useState(vote.cover || "");
@@ -108,7 +110,7 @@ function VoteEditModal({ vote, open, onClose, reload }: { vote: VoteDetail; open
       </div>
       <div className="flex justify-between">
         <Button variant="danger" onClick={async () => {
-          if (!confirm(`确定删除投票「${vote.name}」？全部轮次、选手、票数据将删除！`)) return;
+          if (!(await confirm(`确定删除投票「${vote.name}」？全部轮次、选手、票数据将删除！`, { title: "删除投票", confirmText: "确认删除", danger: true }))) return;
           await api(`/api/votes/${vote.id}`, { method: "DELETE" });
           location.href = "/admin/votes";
         }}>删除投票</Button>
@@ -124,6 +126,7 @@ function VoteEditModal({ vote, open, onClose, reload }: { vote: VoteDetail; open
           }}>保存</Button>
         </div>
       </div>
+      {dialogNode}
     </Modal>
   );
 }

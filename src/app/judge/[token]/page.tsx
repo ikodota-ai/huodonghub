@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { api, getFp, isWechat, contestantImg } from "@/lib/client";
+import { useDialogs } from "@/components/ui/dialogs";
 
 interface JudgeData {
   voteId: string;
@@ -15,6 +16,7 @@ interface JudgeData {
 }
 
 export default function JudgePage() {
+  const { toast, dialogNode } = useDialogs();
   const { token } = useParams<{ token: string }>();
   const [data, setData] = useState<JudgeData | null>(null);
   const [error, setError] = useState("");
@@ -72,7 +74,7 @@ export default function JudgePage() {
       await load(); // 重新拉取，拿到 submitted 明细用于回显
       setDone(true);
     } catch (e) {
-      alert((e as Error).message);
+      toast((e as Error).message);
     } finally {
       setSubmitting(false);
       setConfirm(false);
@@ -231,12 +233,7 @@ export default function JudgePage() {
           <button
             className="flex-1 h-14 rounded-xl bg-brand text-white text-lg font-bold active:bg-brand-600 disabled:bg-ink-200"
             disabled={scored === 0}
-            onClick={() => {
-              if (data.kind === "score" && scored < total) {
-                if (!window.confirm(`还有 ${total - scored} 位选手未打分（按 0 分计），确认提交？`)) return;
-              }
-              setConfirm(true);
-            }}
+            onClick={() => setConfirm(true)}
           >确认提交</button>
         </div>
       </div>
@@ -246,6 +243,9 @@ export default function JudgePage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setConfirm(false)} />
           <div className="relative bg-white rounded-card p-6 w-full max-w-sm text-center">
             <h3 className="font-bold text-lg mb-2">确认提交评分？</h3>
+            {data.kind === "score" && scored < total && (
+              <p className="text-sm text-orange-600 bg-orange-50 rounded-lg px-3 py-2 mb-3">还有 {total - scored} 位选手未打分，将按 0 分计</p>
+            )}
             <p className="text-sm text-ink-500 mb-5">提交后不可修改。请再次确认各位选手的{data.kind === "score" ? "分数" : "选择"}。</p>
             <div className="flex gap-3">
               <button className="flex-1 h-12 rounded-lg border border-ink-200" onClick={() => setConfirm(false)}>再检查下</button>
@@ -256,6 +256,7 @@ export default function JudgePage() {
           </div>
         </div>
       )}
+      {dialogNode}
     </div>
   );
 }

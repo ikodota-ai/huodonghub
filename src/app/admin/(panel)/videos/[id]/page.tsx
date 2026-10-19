@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api, fmtBytes, fmtDuration } from "@/lib/client";
 import { Button, Card, Tabs, Badge, Modal, Field, Input, Textarea, Toggle, Skeleton, QrImage, download, Empty } from "@/components/ui";
+import { useDialogs } from "@/components/ui/dialogs";
 import { Uploader, ImagePicker } from "@/components/Uploader";
 import { cnNumber, episodeTitle } from "@/lib/cn-number";
 
@@ -79,6 +80,7 @@ export default function GroupDetailPage() {
 }
 
 function VideosTab({ group, reload, totalBytes }: { group: GroupDetail; reload: () => void; totalBytes: number }) {
+  const { confirm, dialogNode } = useDialogs();
   const [rename, setRename] = useState<Video | null>(null);
   const [title, setTitle] = useState("");
   const [playing, setPlaying] = useState<Video | null>(null);
@@ -90,7 +92,7 @@ function VideosTab({ group, reload, totalBytes }: { group: GroupDetail; reload: 
     reload();
   }
   async function del(v: Video) {
-    if (!confirm(v.source === "external" ? `确定删除外链条目「${v.title}」？（视频号上的原视频不受影响）` : `确定删除「${v.title}」？文件将一并删除，不可恢复。`)) return;
+    if (!(await confirm(v.source === "external" ? `确定删除外链条目「${v.title}」？（视频号上的原视频不受影响）` : `确定删除「${v.title}」？文件将一并删除，不可恢复。`, { confirmText: "删除", danger: true }))) return;
     await api(`/api/videos/${v.id}`, { method: "DELETE" });
     reload();
   }
@@ -117,7 +119,7 @@ function VideosTab({ group, reload, totalBytes }: { group: GroupDetail; reload: 
           <span>共 {group.videos.length} 个 · {fmtBytes(totalBytes)}</span>
           {group.videos.length > 0 && (
             <Button variant="ghost" size="sm" onClick={async () => {
-              if (!confirm(`将按当前顺序把全部 ${group.videos.length} 个视频重命名为「第N集 标题」（已有的集数前缀会被替换，标题其余部分保留）。确定？`)) return;
+              if (!(await confirm(`将按当前顺序把全部 ${group.videos.length} 个视频重命名为「第N集 标题」（已有的集数前缀会被替换，标题其余部分保留）。确定？`, { title: "按顺序编集数", confirmText: "重命名" }))) return;
               await api("/api/videos/renumber", { method: "POST", body: JSON.stringify({ groupId: group.id }) });
               reload();
             }}>按顺序编集数</Button>
@@ -214,11 +216,13 @@ function VideosTab({ group, reload, totalBytes }: { group: GroupDetail; reload: 
           </>
         )}
       </Modal>
+      {dialogNode}
     </div>
   );
 }
 
 function ImportTab({ groupId, reload }: { groupId: string; reload: () => void }) {
+  const { toast, dialogNode } = useDialogs();
   const [url, setUrl] = useState("");
   const [parsing, setParsing] = useState(false);
   const [error, setError] = useState("");
@@ -253,9 +257,9 @@ function ImportTab({ groupId, reload }: { groupId: string; reload: () => void })
       await api("/api/import/run", { method: "POST", body: JSON.stringify({ groupId, sourceUrl: url, items }) });
       setVideos([]); setUrl("");
       reload();
-      alert("导入成功，视频处理中");
+      toast("导入成功，视频处理中");
     } catch (e) {
-      alert((e as Error).message);
+      toast((e as Error).message);
     } finally {
       setImporting(false);
     }
@@ -285,11 +289,13 @@ function ImportTab({ groupId, reload }: { groupId: string; reload: () => void })
           </Button>
         </div>
       )}
+      {dialogNode}
     </Card>
   );
 }
 
 function ExternalTab({ groupId, reload }: { groupId: string; reload: () => void }) {
+  const { toast, dialogNode } = useDialogs();
   const [mode, setMode] = useState<"single" | "batch">("single");
   const [title, setTitle] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
@@ -306,7 +312,7 @@ function ExternalTab({ groupId, reload }: { groupId: string; reload: () => void 
       setTitle(""); setSourceUrl(""); setCover(null);
       reload();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "保存失败");
+      toast(e instanceof Error ? e.message : "保存失败");
     } finally {
       setSaving(false);
     }
@@ -314,14 +320,14 @@ function ExternalTab({ groupId, reload }: { groupId: string; reload: () => void 
 
   async function submitBatch() {
     const lines = batchText.split("\n").map((l) => l.trim()).filter(Boolean);
-    if (lines.length === 0) { alert("请粘贴链接，每行一条"); return; }
+    if (lines.length === 0) { toast("请粘贴链接，每行一条"); return; }
     const items: { title: string; sourceUrl: string }[] = [];
     for (let i = 0; i < lines.length; i++) {
       const m = lines[i].match(/^(\S+)(?:\s+(.+))?$/);
       const url = m?.[1] ?? "";
-      if (!url.includes("weixin.qq.com/sph/")) { alert(`第 ${i + 1} 行不是视频号链接`); return; }
+      if (!url.includes("weixin.qq.com/sph/")) { toast(`第 ${i + 1} 行不是视频号链接`); return; }
       const t = (m?.[2] ?? batchTitle).trim();
-      if (!t) { alert(`第 ${i + 1} 行缺少标题（可在上方填统一标题）`); return; }
+      if (!t) { toast(`第 ${i + 1} 行缺少标题（可在上方填统一标题）`); return; }
       items.push({ title: episodeTitle(startNo + i, t), sourceUrl: url });
     }
     setSaving(true);
@@ -329,9 +335,9 @@ function ExternalTab({ groupId, reload }: { groupId: string; reload: () => void 
       await api<{ count: number }>("/api/videos", { method: "POST", body: JSON.stringify({ groupId, items }) });
       setBatchText(""); setBatchTitle(""); setStartNo(1);
       reload();
-      alert(`已添加 ${items.length} 个条目`);
+      toast(`已添加 ${items.length} 个条目`);
     } catch (e) {
-      alert(e instanceof Error ? e.message : "保存失败");
+      toast(e instanceof Error ? e.message : "保存失败");
     } finally {
       setSaving(false);
     }
@@ -404,6 +410,7 @@ function ExternalTab({ groupId, reload }: { groupId: string; reload: () => void 
           </>
         )}
       </Card>
+      {dialogNode}
     </div>
   );
 }
@@ -481,6 +488,7 @@ function ShareTab({ group, reload }: { group: GroupDetail; reload: () => void })
 }
 
 function GroupEditModal({ group, open, onClose, reload }: { group: GroupDetail; open: boolean; onClose: () => void; reload: () => void }) {
+  const { confirm, dialogNode } = useDialogs();
   const [name, setName] = useState(group.name);
   const [description, setDescription] = useState(group.description || "");
   const [password, setPassword] = useState(group.password);
@@ -499,7 +507,7 @@ function GroupEditModal({ group, open, onClose, reload }: { group: GroupDetail; 
       <Field label="访问密码" hint="留空表示不设密码"><Input value={password} onChange={(e) => setPassword(e.target.value)} /></Field>
       <div className="flex justify-between">
         <Button variant="danger" onClick={async () => {
-          if (!confirm(`确定删除分组「${group.name}」？组内全部视频与文件将一并删除！`)) return;
+          if (!(await confirm(`确定删除分组「${group.name}」？组内全部视频与文件将一并删除！`, { title: "删除分组", confirmText: "确认删除", danger: true }))) return;
           await api(`/api/groups/${group.id}`, { method: "DELETE" });
           location.href = "/admin/videos";
         }}>删除分组</Button>
@@ -512,6 +520,7 @@ function GroupEditModal({ group, open, onClose, reload }: { group: GroupDetail; 
           }}>保存</Button>
         </div>
       </div>
+      {dialogNode}
     </Modal>
   );
 }
