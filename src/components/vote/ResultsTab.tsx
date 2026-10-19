@@ -25,6 +25,19 @@ interface Aggregate {
   }[];
 }
 
+// 选手跨轮成绩单：每一轮各群体具体分数（原始值+折算），评分群体含逐评委明细
+interface ContestantDetail {
+  contestant: { id: string; number: string; name: string; image: string | null };
+  rounds: {
+    roundId: string; roundName: string; participated: boolean; batch: number; total: number | null;
+    groups: {
+      name: string; kind: string; weight: number; raw: number; contribution: number; participants: number;
+      fixedPoints: number | null;
+      judges: { name: string; score: number; share: number }[];
+    }[];
+  }[];
+}
+
 export function ResultsTab({ vote }: { vote: VoteDetail }) {
   const [mode, setMode] = useState<"round" | "aggregate">("round");
   const [roundId, setRoundId] = useState<string | null>(vote.rounds[0]?.id ?? null);
@@ -32,6 +45,36 @@ export function ResultsTab({ vote }: { vote: VoteDetail }) {
   const [aggData, setAggData] = useState<Aggregate | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedRounds, setSelectedRounds] = useState<string[]>(vote.rounds.map((r) => r.id));
+  // 轮次明细展开：选手成绩单（含逐评委打分）
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [detail, setDetail] = useState<ContestantDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [judgeOpen, setJudgeOpen] = useState<Set<string>>(new Set());
+
+  async function toggleExpand(contestantId: string) {
+    if (expanded === contestantId) { setExpanded(null); return; }
+    setExpanded(contestantId);
+    setDetail(null);
+    setJudgeOpen(new Set());
+    setDetailLoading(true);
+    try {
+      const q = selectedRounds.length > 0 ? `?rounds=${selectedRounds.join(",")}` : "";
+      setDetail(await api<ContestantDetail>(`/api/results/vote/${vote.id}/contestant/${contestantId}${q}`));
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  function toggleJudges(key: string) {
+    setJudgeOpen((prev) => {
+      const n = new Set(prev);
+      if (n.has(key)) n.delete(key); else n.add(key);
+      return n;
+    });
+  }
+
+  // 切换聚合轮次/模式时收起明细，避免与勾选口径不一致
+  useEffect(() => { setExpanded(null); setDetail(null); }, [selectedRounds, mode]);
 
   useEffect(() => {
     if (mode === "round" && roundId) {
@@ -83,7 +126,7 @@ export function ResultsTab({ vote }: { vote: VoteDetail }) {
                 {r.name}
               </label>
             ))}
-            <span className="text-xs text-ink-300">同名群体跨轮合并：评分取平均，投票票数累加、占比取平均</span>
+            <span className="text-xs text-ink-300">同名群体跨轮合并：评分取平均，投票票数累加、占比取平均；点选手行「轮次明细」看每轮具体分数与逐评委打分</span>
           </div>
         </Card>
       )}
@@ -153,12 +196,16 @@ export function ResultsTab({ vote }: { vote: VoteDetail }) {
             {aggData.list.length === 0 ? <Empty text="暂无数据" /> : (
               <div className="divide-y divide-ink-100">
                 {aggData.list.map((item) => (
-                  <div key={item.contestantId} className="flex items-start gap-4 px-5 py-4">
+                  <div key={item.contestantId}>
+                  <div className="flex items-start gap-4 px-5 py-4">
                     <span className={`mt-1 inline-flex w-8 h-8 rounded-full items-center justify-center font-bold shrink-0 ${item.rank === 1 ? "bg-brand text-white" : item.rank <= 3 ? "bg-brand-100 text-brand-700" : "bg-ink-100 text-ink-500"}`}>{item.rank}</span>
                     <div className="w-52 shrink-0">
                       <div className="font-medium leading-snug"><span className="num text-ink-300 mr-1.5">{item.number}</span>{item.name}</div>
                       <div className="text-xs text-ink-300 mt-0.5">总分</div>
                       <div className="text-xl font-bold num text-brand-700 leading-tight">{item.total}</div>
+                      <button className="text-xs text-brand mt-1 hover:underline" onClick={() => toggleExpand(item.contestantId)}>
+                        {expanded === item.contestantId ? "收起 ▴" : "轮次明细 ▾"}
+                      </button>
                     </div>
                     <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                       {item.groups.map((g) => (
@@ -171,6 +218,87 @@ export function ResultsTab({ vote }: { vote: VoteDetail }) {
                         </div>
                       ))}
                     </div>
+                  </div>
+                  {expanded === item.contestantId && (
+                    <div className="px-5 pb-5">
+                      {detailLoading && <p className="text-sm text-ink-300 py-3 text-center">成绩单加载中…</p>}
+                      {!detailLoading && detail && (
+                        <div className="bg-ink-50 rounded-xl p-4 overflow-x-auto">
+                          <p className="text-xs text-ink-500 mb-3">
+                            {detail.contestant.number} {detail.contestant.name} · 各轮成绩单（评分群体点「均分」行可看逐评委打分与折算）
+                          </p>
+                          <table className="w-full text-sm min-w-[560px]">
+                            <thead>
+                              <tr className="text-left text-ink-300 text-xs border-b border-ink-100">
+                                <th className="py-2 pr-3 font-medium">轮次</th>
+                                {(() => {
+                                  const cols: string[] = [];
+                                  for (const r of detail.rounds) for (const g of r.groups) if (!cols.includes(g.name)) cols.push(g.name);
+                                  return cols.map((c) => <th key={c} className="py-2 px-2 font-medium text-right">{c}</th>);
+                                })()}
+                                <th className="py-2 pl-2 font-medium text-right">轮总分</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-ink-100">
+                              {detail.rounds.map((round) => {
+                                const cols: string[] = [];
+                                for (const r of detail.rounds) for (const g of r.groups) if (!cols.includes(g.name)) cols.push(g.name);
+                                if (!round.participated) {
+                                  return (
+                                    <tr key={round.roundId}>
+                                      <td className="py-2.5 pr-3 text-ink-500">{round.roundName}</td>
+                                      <td colSpan={cols.length + 1} className="py-2.5 text-center text-ink-300 text-xs">未参赛</td>
+                                    </tr>
+                                  );
+                                }
+                                return (
+                                  <tr key={round.roundId} className="align-top">
+                                    <td className="py-2.5 pr-3 whitespace-nowrap">
+                                      {round.roundName}
+                                      {round.batch > 0 && <span className="ml-1 text-xs text-ink-300">第{round.batch}批</span>}
+                                    </td>
+                                    {cols.map((name) => {
+                                      const g = round.groups.find((x) => x.name === name);
+                                      if (!g) return <td key={name} className="py-2.5 px-2 text-right text-ink-300">—</td>;
+                                      const jKey = `${round.roundId}|${name}`;
+                                      const open = judgeOpen.has(jKey);
+                                      return (
+                                        <td key={name} className="py-2.5 px-2 text-right">
+                                          <span className="num font-medium">{g.contribution}</span>
+                                          {g.kind === "score" && g.judges.length > 0 ? (
+                                            <button className="block ml-auto text-xs text-brand num hover:underline" onClick={() => toggleJudges(jKey)}>
+                                              均分 {g.raw} · {g.participants}人 {open ? "▴" : "▾"}
+                                            </button>
+                                          ) : (
+                                            <span className="block text-xs text-ink-300 num">
+                                              {g.kind === "vote"
+                                                ? (g.fixedPoints != null ? `${g.raw}票 × ${g.fixedPoints}分` : `${g.raw}票/${g.participants}人`)
+                                                : `均分 ${g.raw} · ${g.participants}人`}
+                                            </span>
+                                          )}
+                                          {open && g.judges.length > 0 && (
+                                            <div className="mt-1.5 bg-white rounded-lg border border-ink-100 divide-y divide-ink-50 text-left">
+                                              {g.judges.map((j, ji) => (
+                                                <div key={ji} className="flex items-center justify-between gap-3 px-2.5 py-1.5 text-xs">
+                                                  <span className="text-ink-700">{j.name}</span>
+                                                  <span className="num whitespace-nowrap">{j.score} 分 <span className="text-ink-300">折算 {j.share}</span></span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </td>
+                                      );
+                                    })}
+                                    <td className="py-2.5 pl-2 text-right num font-bold text-brand-700">{round.total}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   </div>
                 ))}
               </div>
