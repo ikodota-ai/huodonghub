@@ -1,0 +1,15 @@
+- generic [active] [ref=f3e1]:
+  - alert [ref=f3e4]
+  - generic [ref=f3e42]:
+    - generic [ref=f3e43]: ✓
+    - heading "第 1 批已提交" [level=1] [ref=f3e44]
+    - paragraph [ref=f3e45]: 第六届测试杯评选 · 第二轮 · 专家评审
+    - generic [ref=f3e46]:
+      - paragraph [ref=f3e47]: 本批打分明细（周评委）
+      - generic [ref=f3e48]:
+        - generic [ref=f3e49]: 01张三
+        - generic [ref=f3e50]: 98 分
+      - generic [ref=f3e51]:
+        - generic [ref=f3e52]: 02李四
+        - generic [ref=f3e53]: 88 分
+    - paragraph [ref=f3e54]: 请保留本页面，等待下一批开始后将自动刷新…

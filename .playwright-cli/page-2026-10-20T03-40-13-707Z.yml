@@ -1,0 +1,15 @@
+- generic [active] [ref=f3e1]:
+  - alert [ref=f3e4]
+  - generic [ref=f3e91]:
+    - generic [ref=f3e92]: ✓
+    - heading "已提交，感谢评审" [level=1] [ref=f3e93]
+    - paragraph [ref=f3e94]: 第六届测试杯评选 · 第二轮 · 专家评审
+    - generic [ref=f3e95]:
+      - paragraph [ref=f3e96]: 我的打分明细（周评委）
+      - generic [ref=f3e97]:
+        - generic [ref=f3e98]: 03王五
+        - generic [ref=f3e99]: 95 分
+      - generic [ref=f3e100]:
+        - generic [ref=f3e101]: 04赵六
+        - generic [ref=f3e102]: 90 分
+    - paragraph [ref=f3e103]: 评审已完成，请将设备交回工作人员

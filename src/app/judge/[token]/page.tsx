@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { api, getFp, isWechat, contestantImg } from "@/lib/client";
 import { useDialogs } from "@/components/ui/dialogs";
@@ -24,13 +24,20 @@ export default function JudgePage() {
   const [picks, setPicks] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
+  // 记录"本机刚提交的是第几批"：批次前进后自动失效，回到新批次评分表单
+  const [doneBatch, setDoneBatch] = useState<number | null>(null);
+  const lastBatchRef = useRef<number | null>(null);
   const [bindMsg, setBindMsg] = useState("");
 
   const load = useCallback(async () => {
     try {
       const d = await api<JudgeData>(`/api/judge/${token}`);
       setData(d);
+      // 批次切换：清空投票制勾选（评分制由下方合并逻辑处理，新批次选手默认 0）
+      if (lastBatchRef.current !== null && lastBatchRef.current !== d.currentBatch) setPicks(new Set());
+      lastBatchRef.current = d.currentBatch;
+      // 服务端说当前批次未提交（如后台清空了本轮数据）→ 本地"已提交"标记作废，回到表单
+      if (!d.currentBatchSubmitted) setDoneBatch((prev) => (prev === d.currentBatch ? null : prev));
       if (d.kind === "score") {
         // 合并而非重置：轮询刷新或批次切换时保留已填分数
         setScores((prev) => {
@@ -66,13 +73,14 @@ export default function JudgePage() {
 
   async function submit() {
     setSubmitting(true);
+    const batchAtSubmit = data!.currentBatch;
     try {
       const body = data!.kind === "score"
         ? { scores: Object.entries(scores).map(([contestantId, score]) => ({ contestantId, score })), fp: getFp() }
         : { contestantIds: Array.from(picks), fp: getFp() };
       await api(`/api/judge/${token}`, { method: "POST", body: JSON.stringify(body) });
       await load(); // 重新拉取，拿到 submitted 明细用于回显
-      setDone(true);
+      setDoneBatch(batchAtSubmit);
     } catch (e) {
       toast((e as Error).message);
     } finally {
@@ -87,7 +95,7 @@ export default function JudgePage() {
   const batchMode = data.batches.length > 0;
   const allSubmitted = batchMode && data.batches.every((b) => data.submittedBatches.includes(b));
 
-  if (done || data.currentBatchSubmitted) {
+  if (data.currentBatchSubmitted || doneBatch === data.currentBatch) {
     const submittedRows = data.submitted
       .map((s) => ({ ...s, contestant: data.contestants.find((c) => c.id === s.contestantId) }))
       .filter((s) => s.contestant);
@@ -194,12 +202,16 @@ export default function JudgePage() {
                   onClick={() => setScores((s) => ({ ...s, [c.id]: Math.max(0, (s[c.id] || 0) - 1) }))}
                 >−</button>
                 <input
-                  type="number"
+                  type="text"
                   inputMode="numeric"
+                  autoComplete="off"
                   className="w-24 h-14 text-center text-3xl font-bold num border-b-2 border-brand outline-none"
                   value={scores[c.id] ?? 0}
+                  onFocus={(e) => e.target.select()}
                   onChange={(e) => {
-                    const v = Math.min(data.maxScore, Math.max(0, Number(e.target.value.replace(/[^\d]/g, "") || 0)));
+                    // 去非数字字符 + 去前导零（"098"→"98"，单独的 "0" 保留）
+                    const digits = e.target.value.replace(/[^\d]/g, "").replace(/^0+(?=\d)/, "");
+                    const v = Math.min(data.maxScore, Math.max(0, Number(digits || 0)));
                     setScores((s) => ({ ...s, [c.id]: v }));
                   }}
                 />
