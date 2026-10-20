@@ -1,0 +1,9 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]: 台
+    - heading "活动配套管理系统" [level=1] [ref=e6]
+    - paragraph [ref=e7]: 成都广播电视台 · 政商合作部
+  - generic [ref=e8]:
+    - textbox "用户名" [active] [ref=e9]
+    - textbox "密码" [ref=e10]
+    - button "登 录" [disabled] [ref=e11]

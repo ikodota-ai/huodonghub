@@ -1,0 +1,32 @@
+- generic [ref=f1e2]:
+  - complementary [ref=f1e3]:
+    - generic [ref=f1e4]:
+      - generic [ref=f1e5]: 活动配套管理系统
+      - generic [ref=f1e6]: 成都广播电视台
+    - navigation [ref=f1e7]:
+      - link "▤ 仪表盘" [ref=f1e8] [cursor=pointer]:
+        - /url: /admin
+        - generic [ref=f1e9]: ▤
+        - text: 仪表盘
+      - link "🎬 视频分组" [ref=f1e10] [cursor=pointer]:
+        - /url: /admin/videos
+        - generic [ref=f1e11]: 🎬
+        - text: 视频分组
+      - link "🗳 投票评选" [ref=f1e12] [cursor=pointer]:
+        - /url: /admin/votes
+        - generic [ref=f1e13]: 🗳
+        - text: 投票评选
+      - link "✦ AI 能力" [ref=f1e14] [cursor=pointer]:
+        - /url: /admin/ai
+        - generic [ref=f1e15]: ✦
+        - text: AI 能力
+      - link "⚙ 系统设置" [ref=f1e16] [cursor=pointer]:
+        - /url: /admin/system
+        - generic [ref=f1e17]: ⚙
+        - text: 系统设置
+    - generic [ref=f1e18]:
+      - generic [ref=f1e19]: 管理员
+      - generic [ref=f1e20]:
+        - button "修改密码" [ref=f1e21] [cursor=pointer]
+        - button "退出登录" [ref=f1e22] [cursor=pointer]
+  - main [ref=f1e23]

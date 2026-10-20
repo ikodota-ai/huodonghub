@@ -1,0 +1,105 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - complementary [ref=f2e3]:
+      - generic [ref=f2e4]:
+        - generic [ref=f2e5]: 活动配套管理系统
+        - generic [ref=f2e6]: 成都广播电视台
+      - navigation [ref=f2e7]:
+        - link "▤ 仪表盘" [ref=f2e8] [cursor=pointer]:
+          - /url: /admin
+          - generic [ref=f2e9]: ▤
+          - text: 仪表盘
+        - link "🎬 视频分组" [ref=f2e10] [cursor=pointer]:
+          - /url: /admin/videos
+          - generic [ref=f2e11]: 🎬
+          - text: 视频分组
+        - link "🗳 投票评选" [ref=f2e12] [cursor=pointer]:
+          - /url: /admin/votes
+          - generic [ref=f2e13]: 🗳
+          - text: 投票评选
+        - link "✦ AI 能力" [ref=f2e14] [cursor=pointer]:
+          - /url: /admin/ai
+          - generic [ref=f2e15]: ✦
+          - text: AI 能力
+        - link "⚙ 系统设置" [ref=f2e16] [cursor=pointer]:
+          - /url: /admin/system
+          - generic [ref=f2e17]: ⚙
+          - text: 系统设置
+      - generic [ref=f2e18]:
+        - generic [ref=f2e19]: 管理员
+        - generic [ref=f2e20]:
+          - button "修改密码" [ref=f2e21] [cursor=pointer]
+          - button "退出登录" [ref=f2e22] [cursor=pointer]
+    - main [ref=f2e23]:
+      - generic [ref=f2e29]:
+        - generic [ref=f2e30]:
+          - generic [ref=f2e31]:
+            - generic [ref=f2e32]:
+              - link "投票评选" [ref=f2e33] [cursor=pointer]:
+                - /url: /admin/votes
+              - text: / 第六届测试杯评选
+            - heading "第六届测试杯评选 草稿 指纹模式" [level=1] [ref=f2e34]:
+              - text: 第六届测试杯评选
+              - generic [ref=f2e35]: 草稿
+              - generic [ref=f2e36]: 指纹模式
+          - generic [ref=f2e37]:
+            - button "投票设置" [ref=f2e38] [cursor=pointer]
+            - button "大屏控制台（第二轮 进行中）" [ref=f2e39] [cursor=pointer]
+        - generic [ref=f2e40]:
+          - button "轮次（2）" [ref=f2e41] [cursor=pointer]
+          - button "选手（4）" [active] [ref=f2e42] [cursor=pointer]
+          - button "评审" [ref=f2e43] [cursor=pointer]
+          - button "大屏控制台" [ref=f2e44] [cursor=pointer]
+          - button "结果" [ref=f2e45] [cursor=pointer]
+        - generic [ref=f2e178]:
+          - generic [ref=f2e179]:
+            - generic [ref=f2e180]: 共 4 位选手
+            - generic [ref=f2e181]:
+              - button "CSV 批量导入" [ref=f2e182] [cursor=pointer]
+              - button "+ 添加选手" [ref=f2e183] [cursor=pointer]
+          - table [ref=f2e184]:
+            - rowgroup [ref=f2e185]:
+              - row [ref=f2e186]:
+                - columnheader "编号" [ref=f2e187]
+                - columnheader "照片" [ref=f2e188]
+                - columnheader "名称" [ref=f2e189]
+                - columnheader "简介" [ref=f2e190]
+                - columnheader "操作" [ref=f2e191]
+            - rowgroup [ref=f2e192]:
+              - row [ref=f2e193]:
+                - cell "01" [ref=f2e194]
+                - cell [ref=f2e195]
+                - cell "张三" [ref=f2e196]
+                - cell "成都某餐厅" [ref=f2e197]
+                - cell [ref=f2e198]:
+                  - button "成绩单" [ref=f2e199] [cursor=pointer]
+                  - button "编辑" [ref=f2e200] [cursor=pointer]
+                  - button "删除" [ref=f2e201] [cursor=pointer]
+              - row [ref=f2e202]:
+                - cell "02" [ref=f2e203]
+                - cell [ref=f2e204]
+                - cell "李四" [ref=f2e205]
+                - cell "某区单位" [ref=f2e206]
+                - cell [ref=f2e207]:
+                  - button "成绩单" [ref=f2e208] [cursor=pointer]
+                  - button "编辑" [ref=f2e209] [cursor=pointer]
+                  - button "删除" [ref=f2e210] [cursor=pointer]
+              - row [ref=f2e211]:
+                - cell "03" [ref=f2e212]
+                - cell [ref=f2e213]
+                - cell "王五" [ref=f2e214]
+                - cell "德阳某农家乐" [ref=f2e215]
+                - cell [ref=f2e216]:
+                  - button "成绩单" [ref=f2e217] [cursor=pointer]
+                  - button "编辑" [ref=f2e218] [cursor=pointer]
+                  - button "删除" [ref=f2e219] [cursor=pointer]
+              - row [ref=f2e220]:
+                - cell "04" [ref=f2e221]
+                - cell [ref=f2e222]
+                - cell "赵六" [ref=f2e223]
+                - cell [ref=f2e224]
+                - cell [ref=f2e225]:
+                  - button "成绩单" [ref=f2e226] [cursor=pointer]
+                  - button "编辑" [ref=f2e227] [cursor=pointer]
+                  - button "删除" [ref=f2e228] [cursor=pointer]
+  - alert [ref=f2e177]

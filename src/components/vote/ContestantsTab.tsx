@@ -139,15 +139,24 @@ function ContestantModal({ vote, item, onClose, reload }: { vote: VoteDetail; it
 function TranscriptModal({ voteId, contestant, onClose }: { voteId: string; contestant: ContestantItem; onClose: () => void }) {
   const [data, setData] = useState<ContestantDetail | null>(null);
   const [error, setError] = useState("");
+  const [judgeOpen, setJudgeOpen] = useState<Set<string>>(new Set());
   useEffect(() => {
     api<ContestantDetail>(`/api/results/vote/${voteId}/contestant/${contestant.id}`).then(setData).catch((e) => setError((e as Error).message));
   }, [voteId, contestant.id]);
+  function toggleJudges(key: string) {
+    setJudgeOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
   return (
     <Modal open onClose={onClose} title={`${contestant.number} ${contestant.name} · 各轮成绩单`} width="max-w-2xl">
       {error && <p className="text-sm text-red-500">{error}</p>}
       {!data && !error && <p className="text-sm text-ink-300 py-6 text-center">加载中…</p>}
       {data && (
         <div className="space-y-3">
+          <p className="text-xs text-ink-300">评分明细：点「均分」行可展开逐评委打分与折算。</p>
           {data.rounds.length === 0 && <Empty text="还没有轮次" />}
           {data.rounds.map((r) => (
             <div key={r.roundId} className="bg-ink-50 rounded-xl p-4">
@@ -164,17 +173,31 @@ function TranscriptModal({ voteId, contestant, onClose }: { voteId: string; cont
                       <div className="flex items-baseline gap-x-2">
                         <span className="text-ink-500 w-32 shrink-0">{g.name}（{g.weight}%）</span>
                         <span className="num font-semibold w-14">{g.contribution}</span>
-                        <span className="text-xs text-ink-300 num">
-                          {g.kind === "vote"
-                            ? (g.fixedPoints != null ? `${g.raw}票 × ${g.fixedPoints}分` : `${g.raw}票/${g.participants}人`)
-                            : `均分 ${g.raw} · ${g.participants}人`}
-                        </span>
+                        {g.kind === "score" && g.judges.length > 0 ? (
+                          <button
+                            className="text-xs text-brand num hover:underline"
+                            onClick={() => toggleJudges(`${r.roundId}|${g.name}`)}
+                          >
+                            均分 {g.raw} · {g.participants}人 {judgeOpen.has(`${r.roundId}|${g.name}`) ? "▴" : "▾"}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-ink-300 num">
+                            {g.kind === "vote"
+                              ? (g.fixedPoints != null ? `${g.raw}票 × ${g.fixedPoints}分` : `${g.raw}票/${g.participants}人`)
+                              : `均分 ${g.raw} · ${g.participants}人`}
+                          </span>
+                        )}
                         {r.batch > 0 && <span className="ml-auto text-xs text-ink-300">第{r.batch}批</span>}
                       </div>
-                      {g.judges.length > 0 && (
-                        <p className="text-xs text-ink-400 num mt-0.5 pl-32">
-                          {g.judges.map((j) => `${j.name} ${j.score}（${j.share}）`).join(" · ")}
-                        </p>
+                      {g.kind === "score" && g.judges.length > 0 && judgeOpen.has(`${r.roundId}|${g.name}`) && (
+                        <div className="mt-1.5 ml-32 bg-white rounded-lg border border-ink-100 divide-y divide-ink-50 max-w-xs">
+                          {g.judges.map((j, ji) => (
+                            <div key={ji} className="flex items-center justify-between gap-3 px-2.5 py-1.5 text-xs">
+                              <span className="text-ink-700">{j.name}</span>
+                              <span className="num whitespace-nowrap">{j.score} 分 <span className="text-ink-300">折算 {j.share}</span></span>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                   ))}
