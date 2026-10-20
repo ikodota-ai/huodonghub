@@ -120,7 +120,9 @@ export async function computeRoundResults(roundId: bigint): Promise<ContestantRe
         contribution = cache * fixedPoints;
       } else {
         raw = cache;
-        contribution = participants > 0 ? (cache / participants) * weight : 0;
+        // 得票率封顶 100%：开启"每天重置限票"或"允许重复投同一人"后，
+        // 同一人可给同一选手投多票（票数 > 参与人数），不封顶折算会超过权重
+        contribution = participants > 0 ? Math.min(cache / participants, 1) * weight : 0;
       }
       return {
         groupId: g.id,
@@ -211,7 +213,8 @@ export async function computeVoteAggregate(voteId: bigint, roundIds?: bigint[]) 
           if (d.fixedPoints != null) g.fixedPoints = d.fixedPoints;
           if (d.participants > 0) {
             g.votes += d.raw;
-            g.pcts.push((d.raw / d.participants) * 100);
+            // 与单轮一致：得票率按 100% 封顶（每天重置/重复投会产生票数>人数）
+            g.pcts.push(Math.min(d.raw / d.participants, 1) * 100);
           }
         }
       }
