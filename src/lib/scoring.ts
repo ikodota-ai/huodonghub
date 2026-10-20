@@ -10,6 +10,8 @@ export interface GroupDetail {
   raw: number;          // score=平均分, vote=票数
   contribution: number; // 计入总分的分数
   fixedPoints: number | null; // 投票群体固定分值模式时每票分值，否则 null
+  rate: number | null;      // 投票群体（非固定分值）：归一化得票率 0-100（口径随 voteMode）；其他为 null
+  voteMode: string | null;  // 投票群体：participants=票/参与人数 top=相对最高票 share=票仓占比；其他为 null
 }
 
 export interface ContestantResult {
@@ -73,6 +75,7 @@ export async function computeRoundResults(roundId: bigint): Promise<ContestantRe
   // 投票群体：每个批次的独立投票人数（得票率基数按选手所在批次统计，批 0 = 整轮）
   const batchVotersMap = new Map<string, Map<number, number>>(); // groupId -> batch -> 人数
   const roundVotersMap = new Map<string, number>(); // groupId -> 整轮独立投票人数（pctMode=round 时作分母）
+  const voteAggMap = new Map<string, { byBatch: Map<number, { max: number; sum: number }>; round: { max: number; sum: number } }>(); // groupId -> 票数聚合
   for (const g of round.groups) {
     if (g.kind === "score") {
       const rows: { contestant_id: bigint; c: bigint }[] = await db.$queryRaw`
@@ -94,6 +97,17 @@ export async function computeRoundResults(roundId: bigint): Promise<ContestantRe
           SELECT COUNT(DISTINCT voter_key) AS c FROM vote_entries WHERE group_id = ${g.id}`;
         roundVotersMap.set(g.id.toString(), Number(rv[0]?.c ?? 0));
       }
+      // 票数聚合：top/share 计分口径的分母（范围内最高票/总票数）
+      const byBatch = new Map<number, { max: number; sum: number }>();
+      const roundAgg = { max: 0, sum: 0 };
+      for (const s of g.groupStats) {
+        const v = n(s.valueCache);
+        const b = batchOf.get(s.contestantId.toString()) ?? 0;
+        const a = byBatch.get(b) ?? { max: 0, sum: 0 };
+        a.max = Math.max(a.max, v); a.sum += v; byBatch.set(b, a);
+        roundAgg.max = Math.max(roundAgg.max, v); roundAgg.sum += v;
+      }
+      voteAggMap.set(g.id.toString(), { byBatch, round: roundAgg });
     }
   }
 
@@ -111,6 +125,7 @@ export async function computeRoundResults(roundId: bigint): Promise<ContestantRe
       const weight = n(g.weight);
       let raw = 0;
       let contribution = 0;
+      let rate: number | null = null;
       const fixedPoints = g.kind === "vote" && g.fixedPoints != null ? n(g.fixedPoints) : null;
       if (g.kind === "score") {
         raw = participants > 0 ? cache / participants : 0;
@@ -120,9 +135,19 @@ export async function computeRoundResults(roundId: bigint): Promise<ContestantRe
         contribution = cache * fixedPoints;
       } else {
         raw = cache;
-        // 得票率封顶 100%：开启"每天重置限票"或"允许重复投同一人"后，
-        // 同一人可给同一选手投多票（票数 > 参与人数），不封顶折算会超过权重
-        contribution = participants > 0 ? Math.min(cache / participants, 1) * weight : 0;
+        // 归一化得票率（0-100），口径随 voteMode：
+        // participants=票/参与人数（封顶100，重复投会产生票数>人数）
+        // top=票/范围内最高票（0票=0%，最高票=100%，其余线性落区间）
+        // share=票/范围内总票数（所有选手瓜分权重分）
+        const agg = voteAggMap.get(g.id.toString());
+        const b = batchOf.get(contestant.id.toString()) ?? 0;
+        const scope = g.pctMode === "round" ? agg?.round : agg?.byBatch.get(b);
+        let r = 0;
+        if (g.voteMode === "top") r = scope && scope.max > 0 ? (cache / scope.max) * 100 : 0;
+        else if (g.voteMode === "share") r = scope && scope.sum > 0 ? (cache / scope.sum) * 100 : 0;
+        else r = participants > 0 ? Math.min((cache / participants) * 100, 100) : 0;
+        rate = Math.round(r * 100) / 100;
+        contribution = (rate * weight) / 100;
       }
       return {
         groupId: g.id,
@@ -134,6 +159,8 @@ export async function computeRoundResults(roundId: bigint): Promise<ContestantRe
         raw: Math.round(raw * 100) / 100,
         contribution: Math.round(contribution * 100) / 100,
         fixedPoints,
+        rate,
+        voteMode: g.kind === "vote" ? g.voteMode : null,
       };
     });
     const total = Math.round(details.reduce((s, d) => s + d.contribution, 0) * 100) / 100;
@@ -213,8 +240,8 @@ export async function computeVoteAggregate(voteId: bigint, roundIds?: bigint[]) 
           if (d.fixedPoints != null) g.fixedPoints = d.fixedPoints;
           if (d.participants > 0) {
             g.votes += d.raw;
-            // 与单轮一致：得票率按 100% 封顶（每天重置/重复投会产生票数>人数）
-            g.pcts.push(Math.min(d.raw / d.participants, 1) * 100);
+            // 单轮已按 voteMode 归一（参与人数封顶/相对最高票/票仓占比），直接取 rate
+            if (d.rate != null) g.pcts.push(d.rate);
           }
         }
       }

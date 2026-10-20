@@ -55,6 +55,7 @@ export async function GET(req: Request, { params }: Ctx) {
           name: d.groupName, kind: d.kind, weight: d.weight,
           raw: d.raw, contribution: d.contribution, participants: d.participants,
           fixedPoints: d.fixedPoints,
+          rate: d.rate, voteMode: d.voteMode,
           judges: d.kind !== "score" ? [] : (judgesByGroup.get(d.groupId.toString()) ?? []).map((j) => ({
             ...j,
             share: d.participants > 0 ? Math.round(((j.score / d.participants) * (d.weight / 100)) * 100) / 100 : 0,

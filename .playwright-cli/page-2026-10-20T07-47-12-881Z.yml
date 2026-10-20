@@ -1,0 +1,63 @@
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - complementary [ref=f1e3]:
+      - generic [ref=f1e4]:
+        - generic [ref=f1e5]: 活动配套管理系统
+        - generic [ref=f1e6]: 成都广播电视台
+      - navigation [ref=f1e7]:
+        - link "▤ 仪表盘" [ref=f1e8] [cursor=pointer]:
+          - /url: /admin
+          - generic [ref=f1e9]: ▤
+          - text: 仪表盘
+        - link "🎬 视频分组" [ref=f1e10] [cursor=pointer]:
+          - /url: /admin/videos
+          - generic [ref=f1e11]: 🎬
+          - text: 视频分组
+        - link "🗳 投票评选" [ref=f1e12] [cursor=pointer]:
+          - /url: /admin/votes
+          - generic [ref=f1e13]: 🗳
+          - text: 投票评选
+        - link "✦ AI 能力" [ref=f1e14] [cursor=pointer]:
+          - /url: /admin/ai
+          - generic [ref=f1e15]: ✦
+          - text: AI 能力
+        - link "⚙ 系统设置" [ref=f1e16] [cursor=pointer]:
+          - /url: /admin/system
+          - generic [ref=f1e17]: ⚙
+          - text: 系统设置
+      - generic [ref=f1e18]:
+        - generic [ref=f1e19]: 管理员
+        - generic [ref=f1e20]:
+          - button "修改密码" [ref=f1e21] [cursor=pointer]
+          - button "退出登录" [ref=f1e22] [cursor=pointer]
+    - main [ref=f1e23]:
+      - generic [ref=f1e29]:
+        - generic [ref=f1e30]:
+          - generic [ref=f1e31]:
+            - generic [ref=f1e32]:
+              - link "投票评选" [ref=f1e33] [cursor=pointer]:
+                - /url: /admin/votes
+              - text: / 第六届测试杯评选
+            - heading "第六届测试杯评选 草稿 指纹模式" [level=1] [ref=f1e34]:
+              - text: 第六届测试杯评选
+              - generic [ref=f1e35]: 草稿
+              - generic [ref=f1e36]: 指纹模式
+          - generic [ref=f1e37]:
+            - button "投票设置" [ref=f1e38] [cursor=pointer]
+            - button "大屏控制台（第二轮 进行中）" [ref=f1e39] [cursor=pointer]
+        - generic [ref=f1e40]:
+          - button "轮次（2）" [ref=f1e41] [cursor=pointer]
+          - button "选手（4）" [ref=f1e42] [cursor=pointer]
+          - button "评审" [ref=f1e43] [cursor=pointer]
+          - button "大屏控制台" [ref=f1e44] [cursor=pointer]
+          - button "结果" [active] [ref=f1e45] [cursor=pointer]
+        - generic [ref=f1e316]:
+          - generic [ref=f1e317]:
+            - button "单轮结果" [ref=f1e318] [cursor=pointer]
+            - button "跨轮聚合" [ref=f1e319] [cursor=pointer]
+          - generic [ref=f1e320]:
+            - combobox [ref=f1e321]:
+              - option "第一轮"
+              - option "第二轮" [selected]
+            - button "导出 CSV" [ref=f1e322] [cursor=pointer]
+  - alert [ref=f1e179]

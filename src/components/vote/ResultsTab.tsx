@@ -12,7 +12,7 @@ interface RoundResults {
   results: {
     rank: number; number: string; name: string; total: number;
     batch: number;
-    groups: { groupId: string; name: string; kind: string; weight: number; raw: number; contribution: number; participants: number }[];
+    groups: { groupId: string; name: string; kind: string; weight: number; raw: number; contribution: number; participants: number; rate: number | null; voteMode: string | null; fixedPoints: number | null }[];
   }[];
 }
 
@@ -32,7 +32,7 @@ export interface ContestantDetail {
     roundId: string; roundName: string; participated: boolean; batch: number; total: number | null;
     groups: {
       name: string; kind: string; weight: number; raw: number; contribution: number; participants: number;
-      fixedPoints: number | null;
+      fixedPoints: number | null; rate: number | null; voteMode: string | null;
       judges: { name: string; score: number; share: number }[];
     }[];
   }[];
@@ -160,7 +160,9 @@ export function ResultsTab({ vote }: { vote: VoteDetail }) {
                       <td key={d.groupId} className="px-3 py-3 text-right">
                         <span className="num font-medium">{d.contribution}</span>
                         <span className="block text-xs text-ink-300 num">
-                          {d.kind === "vote" ? `${d.raw}票/${d.participants}人` : `均分 ${d.raw}`}
+                          {d.kind === "vote"
+                            ? (d.fixedPoints != null ? `${d.raw}票 × ${d.fixedPoints}分` : d.voteMode === "participants" ? `${d.raw}票/${d.participants}人` : `${d.raw}票 · ${d.rate}%`)
+                            : `均分 ${d.raw}`}
                         </span>
                       </td>
                     ))}
@@ -272,7 +274,7 @@ export function ResultsTab({ vote }: { vote: VoteDetail }) {
                                           ) : (
                                             <span className="block text-xs text-ink-300 num">
                                               {g.kind === "vote"
-                                                ? (g.fixedPoints != null ? `${g.raw}票 × ${g.fixedPoints}分` : `${g.raw}票/${g.participants}人`)
+                                                ? (g.fixedPoints != null ? `${g.raw}票 × ${g.fixedPoints}分` : g.voteMode === "participants" ? `${g.raw}票/${g.participants}人` : `${g.raw}票 · ${g.rate}%`)
                                                 : `均分 ${g.raw} · ${g.participants}人`}
                                             </span>
                                           )}

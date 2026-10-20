@@ -18,7 +18,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       results: results.map((r, i) => ({
         rank: i + 1, contestantId: r.contestantId.toString(), number: r.number, name: r.name, total: r.total,
         batch: r.batch,
-        groups: r.groups.map((d) => ({ groupId: d.groupId.toString(), name: d.groupName, kind: d.kind, weight: d.weight, raw: d.raw, contribution: d.contribution, participants: d.participants })),
+        groups: r.groups.map((d) => ({ groupId: d.groupId.toString(), name: d.groupName, kind: d.kind, weight: d.weight, raw: d.raw, contribution: d.contribution, participants: d.participants, rate: d.rate, voteMode: d.voteMode, fixedPoints: d.fixedPoints })),
       })),
     });
   } catch (e) {

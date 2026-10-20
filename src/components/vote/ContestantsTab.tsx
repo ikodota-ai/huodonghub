@@ -183,7 +183,7 @@ function TranscriptModal({ voteId, contestant, onClose }: { voteId: string; cont
                         ) : (
                           <span className="text-xs text-ink-300 num">
                             {g.kind === "vote"
-                              ? (g.fixedPoints != null ? `${g.raw}票 × ${g.fixedPoints}分` : `${g.raw}票/${g.participants}人`)
+                              ? (g.fixedPoints != null ? `${g.raw}票 × ${g.fixedPoints}分` : g.voteMode === "participants" ? `${g.raw}票/${g.participants}人` : `${g.raw}票 · ${g.rate}%`)
                               : `均分 ${g.raw} · ${g.participants}人`}
                           </span>
                         )}

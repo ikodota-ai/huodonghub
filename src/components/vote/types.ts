@@ -4,6 +4,7 @@ export interface VoteGroupItem {
   fixedPoints: number | null; restricted: number; sort: number;
   avgMode: "scorers" | "roster"; pctMode: "batch" | "round";
   votePeriod: "total" | "daily";
+  voteMode: "participants" | "top" | "share";
   voterCount: number;
 }
 

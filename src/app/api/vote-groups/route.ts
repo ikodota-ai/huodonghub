@@ -17,6 +17,7 @@ const schema = z.object({
   avgMode: z.enum(["scorers", "roster"]).default("scorers"),
   pctMode: z.enum(["batch", "round"]).default("batch"),
   votePeriod: z.enum(["total", "daily"]).default("total"),
+  voteMode: z.enum(["participants", "top", "share"]).default("participants"),
 });
 
 export async function POST(req: Request) {

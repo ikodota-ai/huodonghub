@@ -1,0 +1,111 @@
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - complementary [ref=f1e3]:
+      - generic [ref=f1e4]:
+        - generic [ref=f1e5]: 活动配套管理系统
+        - generic [ref=f1e6]: 成都广播电视台
+      - navigation [ref=f1e7]:
+        - link "▤ 仪表盘" [ref=f1e8] [cursor=pointer]:
+          - /url: /admin
+          - generic [ref=f1e9]: ▤
+          - text: 仪表盘
+        - link "🎬 视频分组" [ref=f1e10] [cursor=pointer]:
+          - /url: /admin/videos
+          - generic [ref=f1e11]: 🎬
+          - text: 视频分组
+        - link "🗳 投票评选" [ref=f1e12] [cursor=pointer]:
+          - /url: /admin/votes
+          - generic [ref=f1e13]: 🗳
+          - text: 投票评选
+        - link "✦ AI 能力" [ref=f1e14] [cursor=pointer]:
+          - /url: /admin/ai
+          - generic [ref=f1e15]: ✦
+          - text: AI 能力
+        - link "⚙ 系统设置" [ref=f1e16] [cursor=pointer]:
+          - /url: /admin/system
+          - generic [ref=f1e17]: ⚙
+          - text: 系统设置
+      - generic [ref=f1e18]:
+        - generic [ref=f1e19]: 管理员
+        - generic [ref=f1e20]:
+          - button "修改密码" [ref=f1e21] [cursor=pointer]
+          - button "退出登录" [ref=f1e22] [cursor=pointer]
+    - main [ref=f1e23]:
+      - generic [ref=f1e29]:
+        - generic [ref=f1e30]:
+          - generic [ref=f1e31]:
+            - generic [ref=f1e32]:
+              - link "投票评选" [ref=f1e33] [cursor=pointer]:
+                - /url: /admin/votes
+              - text: / 第六届测试杯评选
+            - heading "第六届测试杯评选 草稿 指纹模式" [level=1] [ref=f1e34]:
+              - text: 第六届测试杯评选
+              - generic [ref=f1e35]: 草稿
+              - generic [ref=f1e36]: 指纹模式
+          - generic [ref=f1e37]:
+            - button "投票设置" [ref=f1e38] [cursor=pointer]
+            - button "大屏控制台（第二轮 进行中）" [ref=f1e39] [cursor=pointer]
+        - generic [ref=f1e40]:
+          - button "轮次（2）" [ref=f1e41] [cursor=pointer]
+          - button "选手（4）" [ref=f1e42] [cursor=pointer]
+          - button "评审" [ref=f1e43] [cursor=pointer]
+          - button "大屏控制台" [ref=f1e44] [cursor=pointer]
+          - button "结果" [active] [ref=f1e45] [cursor=pointer]
+        - generic [ref=f1e315]:
+          - generic [ref=f1e316]:
+            - generic [ref=f1e317]:
+              - button "单轮结果" [ref=f1e318] [cursor=pointer]
+              - button "跨轮聚合" [ref=f1e319] [cursor=pointer]
+            - generic [ref=f1e320]:
+              - combobox [ref=f1e321]:
+                - option "第一轮" [selected]
+                - option "第二轮"
+              - button "导出 CSV" [ref=f1e322] [cursor=pointer]
+          - generic [ref=f1e323]:
+            - generic [ref=f1e324]:
+              - heading "第六届测试杯评选 · 第一轮" [level=3] [ref=f1e325]
+              - generic [ref=f1e326]: 专家评审 60% · 观众评审 40%
+            - table [ref=f1e327]:
+              - rowgroup [ref=f1e328]:
+                - row [ref=f1e329]:
+                  - columnheader "排名" [ref=f1e330]
+                  - columnheader "选手" [ref=f1e331]
+                  - columnheader "专家评审 60%" [ref=f1e332]:
+                    - text: 专家评审
+                    - generic [ref=f1e333]: 60%
+                  - columnheader "观众评审 40%" [ref=f1e334]:
+                    - text: 观众评审
+                    - generic [ref=f1e335]: 40%
+                  - columnheader "总分" [ref=f1e336]
+              - rowgroup [ref=f1e337]:
+                - row [ref=f1e338]:
+                  - cell "1" [ref=f1e339]
+                  - cell "01张三" [ref=f1e341]
+                  - cell "54.6 均分 91" [ref=f1e342]:
+                    - text: "54.6"
+                    - generic [ref=f1e343]: 均分 91
+                  - cell "30 3票/4人" [ref=f1e344]:
+                    - text: "30"
+                    - generic [ref=f1e345]: 3票/4人
+                  - cell "84.6" [ref=f1e346]
+                - row [ref=f1e347]:
+                  - cell "2" [ref=f1e348]
+                  - cell "02李四" [ref=f1e350]
+                  - cell "51.9 均分 86.5" [ref=f1e351]:
+                    - text: "51.9"
+                    - generic [ref=f1e352]: 均分 86.5
+                  - cell "20 2票/4人" [ref=f1e353]:
+                    - text: "20"
+                    - generic [ref=f1e354]: 2票/4人
+                  - cell "71.9" [ref=f1e355]
+                - row [ref=f1e356]:
+                  - cell "3" [ref=f1e357]
+                  - cell "03王五" [ref=f1e359]
+                  - cell "50.4 均分 84" [ref=f1e360]:
+                    - text: "50.4"
+                    - generic [ref=f1e361]: 均分 84
+                  - cell "10 1票/4人" [ref=f1e362]:
+                    - text: "10"
+                    - generic [ref=f1e363]: 1票/4人
+                  - cell "60.4" [ref=f1e364]
+  - alert [ref=f1e179]

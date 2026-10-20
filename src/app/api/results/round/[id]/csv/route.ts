@@ -15,7 +15,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     const rows = results.map((r, i) => [
       String(i + 1), r.number, r.name,
       ...(batchMode ? [`第${r.batch}批`] : []),
-      ...r.groups.flatMap((d) => [d.kind === "vote" ? `${d.raw}票/${d.participants}人` : `${d.raw}`, String(d.contribution)]),
+      ...r.groups.flatMap((d) => [d.kind === "vote" ? (d.fixedPoints != null ? `${d.raw}票×${d.fixedPoints}分` : d.voteMode === "participants" ? `${d.raw}票/${d.participants}人` : `${d.raw}票·${d.rate}%`) : `${d.raw}`, String(d.contribution)]),
       String(r.total),
     ]);
     const csv = "﻿" + toCsv([header, ...rows]);

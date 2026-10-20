@@ -19,6 +19,7 @@ const updateSchema = z.object({
   avgMode: z.enum(["scorers", "roster"]).optional(),
   pctMode: z.enum(["batch", "round"]).optional(),
   votePeriod: z.enum(["total", "daily"]).optional(),
+  voteMode: z.enum(["participants", "top", "share"]).optional(),
 });
 
 export async function PUT(req: Request, { params }: Ctx) {

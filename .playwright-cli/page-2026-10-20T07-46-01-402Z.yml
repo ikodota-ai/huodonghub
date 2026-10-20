@@ -1,0 +1,234 @@
+- generic [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - complementary [ref=f1e3]:
+      - generic [ref=f1e4]:
+        - generic [ref=f1e5]: 活动配套管理系统
+        - generic [ref=f1e6]: 成都广播电视台
+      - navigation [ref=f1e7]:
+        - link "▤ 仪表盘" [ref=f1e8] [cursor=pointer]:
+          - /url: /admin
+          - generic [ref=f1e9]: ▤
+          - text: 仪表盘
+        - link "🎬 视频分组" [ref=f1e10] [cursor=pointer]:
+          - /url: /admin/videos
+          - generic [ref=f1e11]: 🎬
+          - text: 视频分组
+        - link "🗳 投票评选" [ref=f1e12] [cursor=pointer]:
+          - /url: /admin/votes
+          - generic [ref=f1e13]: 🗳
+          - text: 投票评选
+        - link "✦ AI 能力" [ref=f1e14] [cursor=pointer]:
+          - /url: /admin/ai
+          - generic [ref=f1e15]: ✦
+          - text: AI 能力
+        - link "⚙ 系统设置" [ref=f1e16] [cursor=pointer]:
+          - /url: /admin/system
+          - generic [ref=f1e17]: ⚙
+          - text: 系统设置
+      - generic [ref=f1e18]:
+        - generic [ref=f1e19]: 管理员
+        - generic [ref=f1e20]:
+          - button "修改密码" [ref=f1e21] [cursor=pointer]
+          - button "退出登录" [ref=f1e22] [cursor=pointer]
+    - main [ref=f1e23]:
+      - generic [ref=f1e29]:
+        - generic [ref=f1e30]:
+          - generic [ref=f1e31]:
+            - generic [ref=f1e32]:
+              - link "投票评选" [ref=f1e33] [cursor=pointer]:
+                - /url: /admin/votes
+              - text: / 第六届测试杯评选
+            - heading "第六届测试杯评选 草稿 指纹模式" [level=1] [ref=f1e34]:
+              - text: 第六届测试杯评选
+              - generic [ref=f1e35]: 草稿
+              - generic [ref=f1e36]: 指纹模式
+          - generic [ref=f1e37]:
+            - button "投票设置" [ref=f1e38] [cursor=pointer]
+            - button "大屏控制台（第二轮 进行中）" [ref=f1e39] [cursor=pointer]
+        - generic [ref=f1e40]:
+          - button "轮次（2）" [ref=f1e41] [cursor=pointer]
+          - button "选手（4）" [ref=f1e42] [cursor=pointer]
+          - button "评审" [ref=f1e43] [cursor=pointer]
+          - button "大屏控制台" [ref=f1e44] [cursor=pointer]
+          - button "结果" [ref=f1e45] [cursor=pointer]
+        - generic [ref=f1e46]:
+          - generic [ref=f1e47]:
+            - generic [ref=f1e48]:
+              - button "1. 第一轮 已结束" [ref=f1e49] [cursor=pointer]:
+                - generic [ref=f1e50]: 1. 第一轮
+                - generic [ref=f1e51]: 已结束
+              - button "3. 第二轮 进行中" [active] [ref=f1e52] [cursor=pointer]:
+                - generic [ref=f1e53]: 3. 第二轮
+                - generic [ref=f1e54]: 进行中
+            - button "+ 新增轮次" [ref=f1e55] [cursor=pointer]
+            - paragraph [ref=f1e56]: 新轮次自动复制上轮群体与参赛名单
+          - generic [ref=f1e180]:
+            - generic [ref=f1e181]:
+              - generic [ref=f1e182]:
+                - heading "轮次设置" [level=3] [ref=f1e183]
+                - generic [ref=f1e184]:
+                  - button "暂停" [ref=f1e185] [cursor=pointer]
+                  - button "结束本轮" [ref=f1e186] [cursor=pointer]
+                  - button "删除轮次" [ref=f1e187] [cursor=pointer]
+              - generic [ref=f1e188]:
+                - generic [ref=f1e189]:
+                  - generic [ref=f1e190]: 轮次名称
+                  - textbox "轮次名称" [ref=f1e191]: 第二轮
+                - generic [ref=f1e193]:
+                  - button "观众端开放结果查看" [ref=f1e194] [cursor=pointer]
+                  - text: 观众端开放结果查看
+              - generic [ref=f1e196]:
+                - generic [ref=f1e197]: 观众入口：
+                - button "http://localhost:3000/vote/t7cgkbg3（复制）" [ref=f1e198] [cursor=pointer]
+                - generic [ref=f1e199]: "|"
+                - generic [ref=f1e200]: 大屏：
+                - button "http://localhost:3000/screen/3（复制）" [ref=f1e201] [cursor=pointer]
+            - generic [ref=f1e202]:
+              - heading "评审群体配置" [level=3] [ref=f1e203]
+              - paragraph [ref=f1e204]: 勾选启用群体并设置权重，合计必须等于 100%。
+              - generic [ref=f1e205]:
+                - generic [ref=f1e206]:
+                  - generic [ref=f1e207]:
+                    - button [ref=f1e208] [cursor=pointer]
+                    - generic [ref=f1e210]: 专家评审
+                    - combobox [ref=f1e211]:
+                      - option "评分制" [selected]
+                      - option "投票制"
+                    - generic [ref=f1e212]:
+                      - text: 权重
+                      - spinbutton "权重 %" [ref=f1e213]: "50"
+                      - text: "%"
+                    - generic [ref=f1e214]:
+                      - text: 满分
+                      - spinbutton "满分" [ref=f1e215]: "100"
+                    - generic [ref=f1e216]:
+                      - text: 均分按
+                      - combobox "均分按" [ref=f1e217]:
+                        - option "实际评分人数" [selected]
+                        - option "全体评委人数"
+                    - generic [ref=f1e218]:
+                      - checkbox "限定名单（口令进入）" [checked] [ref=f1e219]
+                      - text: 限定名单（口令进入）
+                  - paragraph [ref=f1e220]: 在「评审」Tab 为此群体添加评审并生成专属二维码
+                  - paragraph [ref=f1e221]: 计分：均分 = 总分 ÷ 实际给该选手打分的评委数——漏评某批的评委不摊薄该批分数（推荐，分批必选）
+                - generic [ref=f1e222]:
+                  - generic [ref=f1e223]:
+                    - button [ref=f1e224] [cursor=pointer]
+                    - generic [ref=f1e226]: 大众评审
+                    - combobox [ref=f1e227]:
+                      - option "评分制" [selected]
+                      - option "投票制"
+                    - generic [ref=f1e228]:
+                      - text: 权重
+                      - spinbutton "权重 %" [ref=f1e229]: "20"
+                      - text: "%"
+                    - generic [ref=f1e230]:
+                      - text: 满分
+                      - spinbutton "满分" [ref=f1e231]: "100"
+                    - generic [ref=f1e232]:
+                      - text: 均分按
+                      - combobox "均分按" [ref=f1e233]:
+                        - option "实际评分人数" [selected]
+                        - option "全体评委人数"
+                    - generic [ref=f1e234]:
+                      - checkbox "限定名单（口令进入）" [checked] [ref=f1e235]
+                      - text: 限定名单（口令进入）
+                  - paragraph [ref=f1e236]: 在「评审」Tab 为此群体添加评审并生成专属二维码，评审首次扫码将绑定微信
+                  - paragraph [ref=f1e237]: 计分：均分 = 总分 ÷ 实际给该选手打分的评委数——漏评某批的评委不摊薄该批分数（推荐，分批必选）
+                - generic [ref=f1e238]:
+                  - generic [ref=f1e239]:
+                    - button [ref=f1e240] [cursor=pointer]
+                    - generic [ref=f1e242]: 观众评审
+                    - combobox [ref=f1e243]:
+                      - option "评分制"
+                      - option "投票制" [selected]
+                    - generic [ref=f1e244]:
+                      - text: 权重
+                      - spinbutton "权重 %" [ref=f1e245]: "30"
+                      - text: "%"
+                    - generic [ref=f1e246]:
+                      - text: 每人
+                      - spinbutton "每人 票" [ref=f1e247]: "3"
+                      - text: 票
+                    - generic "全程有效=整个活动一共只能投这些票；每天重置=每天都能投这些票（按东八区0点重置，不可重复投同一选手也按天重置）" [ref=f1e248]:
+                      - text: 周期
+                      - combobox "周期" [ref=f1e249]:
+                        - option "全程有效" [selected]
+                        - option "每天重置"
+                    - generic [ref=f1e250]:
+                      - text: 计分
+                      - combobox "计分" [ref=f1e251]:
+                        - option "按得票率" [selected]
+                        - option "固定分值"
+                    - generic "参与人数=票数÷参与投票人数（1人1票传统口径，重复投会封顶100%）；相对最高票=0票得0%、范围内最高票得100%，其余按票数线性落区间（多人多天投票也能保持满分梯度，推荐）；票仓占比=个人票数÷范围内总票数，所有选手瓜分权重分" [ref=f1e252]:
+                      - text: 得票率
+                      - combobox "得票率" [ref=f1e253]:
+                        - option "按参与人数"
+                        - option "相对最高票（推荐）" [selected]
+                        - option "票仓占比"
+                    - generic "得票率的分母统计范围：本批=选手所在批次内独立计算（分批比拼推荐，晚场观众少不摊薄）；整轮=全部选手同一池子" [ref=f1e254]:
+                      - text: 范围
+                      - combobox "范围" [ref=f1e255]:
+                        - option "本批" [selected]
+                        - option "整轮"
+                    - generic [ref=f1e256]:
+                      - checkbox "允许重复投同一人" [ref=f1e257]
+                      - text: 允许重复投同一人
+                    - generic [ref=f1e258]:
+                      - checkbox "限定名单（口令进入）" [ref=f1e259]
+                      - text: 限定名单（口令进入）
+                  - paragraph [ref=f1e260]: 计分：得票率 = 票数 ÷ 本批最高票（0票=0%，最高票=100%，其余线性落区间）× 权重%——多人多天投票也保持满分梯度，人气第一拿满人气分（推荐）
+              - generic [ref=f1e261]:
+                - generic [ref=f1e262]: 权重合计 100% ✓
+                - generic [ref=f1e263]:
+                  - generic "专家评审 50%" [ref=f1e264]
+                  - generic "大众评审 20%" [ref=f1e265]
+                  - generic "观众评审 30%" [ref=f1e266]
+            - generic [ref=f1e267]:
+              - heading "本轮参赛选手（4）" [level=3] [ref=f1e268]
+              - generic [ref=f1e269]:
+                - paragraph [ref=f1e270]: 从选手库勾选（选手库在「选手」Tab 维护）
+                - generic [ref=f1e271]:
+                  - button "全选（4）" [ref=f1e272] [cursor=pointer]
+                  - button "清空" [ref=f1e273] [cursor=pointer]
+              - generic [ref=f1e274]:
+                - generic [ref=f1e275]: 批次/出场：
+                - button "按名单顺序生成出场顺序" [ref=f1e276] [cursor=pointer]
+                - button "每 N 人分为一批" [ref=f1e277] [cursor=pointer]
+                - button "全部设为全员（批次 0）" [ref=f1e278] [cursor=pointer]
+                - generic [ref=f1e279]: 批次 0 = 全员同时投票；≥1 = 分批比拼（控制台按批开放）
+              - generic [ref=f1e280]:
+                - generic [ref=f1e281]:
+                  - generic [ref=f1e282] [cursor=pointer]:
+                    - checkbox "01 张三" [checked] [ref=f1e283]
+                    - generic [ref=f1e284]: "01"
+                    - generic [ref=f1e285]: 张三
+                  - generic [ref=f1e286]:
+                    - spinbutton "批次：0=全员，N=第 N 批" [ref=f1e287]: "1"
+                    - spinbutton "出场顺序" [ref=f1e288]: "1"
+                - generic [ref=f1e289]:
+                  - generic [ref=f1e290] [cursor=pointer]:
+                    - checkbox "02 李四" [checked] [ref=f1e291]
+                    - generic [ref=f1e292]: "02"
+                    - generic [ref=f1e293]: 李四
+                  - generic [ref=f1e294]:
+                    - spinbutton "批次：0=全员，N=第 N 批" [ref=f1e295]: "1"
+                    - spinbutton "出场顺序" [ref=f1e296]: "2"
+                - generic [ref=f1e297]:
+                  - generic [ref=f1e298] [cursor=pointer]:
+                    - checkbox "03 王五" [checked] [ref=f1e299]
+                    - generic [ref=f1e300]: "03"
+                    - generic [ref=f1e301]: 王五
+                  - generic [ref=f1e302]:
+                    - spinbutton "批次：0=全员，N=第 N 批" [ref=f1e303]: "2"
+                    - spinbutton "出场顺序" [ref=f1e304]: "3"
+                - generic [ref=f1e305]:
+                  - generic [ref=f1e306] [cursor=pointer]:
+                    - checkbox "04 赵六" [checked] [ref=f1e307]
+                    - generic [ref=f1e308]: "04"
+                    - generic [ref=f1e309]: 赵六
+                  - generic [ref=f1e310]:
+                    - spinbutton "批次：0=全员，N=第 N 批" [ref=f1e311]: "2"
+                    - spinbutton "出场顺序" [ref=f1e312]: "4"
+            - button "保存轮次配置" [ref=f1e314] [cursor=pointer]
+  - alert [ref=f1e179]
