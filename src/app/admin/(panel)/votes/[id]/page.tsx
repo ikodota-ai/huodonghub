@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/client";
-import { Button, Tabs, Badge, Skeleton, Modal, Field, Input, Textarea } from "@/components/ui";
+import { Button, Tabs, Badge, Skeleton, Modal, Field, Input, Textarea, Toggle } from "@/components/ui";
 import { VoteDetail } from "@/components/vote/types";
 import { RoundsTab } from "@/components/vote/RoundsTab";
 import { ContestantsTab } from "@/components/vote/ContestantsTab";
@@ -79,9 +79,13 @@ function VoteEditModal({ vote, open, onClose, reload }: { vote: VoteDetail; open
   const [wxAppid, setWxAppid] = useState(vote.wxAppid);
   const [wxSecret, setWxSecret] = useState(vote.wxSecret);
   const [status, setStatus] = useState(vote.status);
+  const [screenBgEnabled, setScreenBgEnabled] = useState(vote.screenBgEnabled);
+  const [screenBgImage, setScreenBgImage] = useState(vote.screenBgImage || "");
+  const [screenBgDim, setScreenBgDim] = useState(vote.screenBgDim);
   useEffect(() => {
     setName(vote.name); setDescription(vote.description || ""); setCover(vote.cover || "");
     setWxAppid(vote.wxAppid); setWxSecret(vote.wxSecret); setStatus(vote.status);
+    setScreenBgEnabled(vote.screenBgEnabled); setScreenBgImage(vote.screenBgImage || ""); setScreenBgDim(vote.screenBgDim);
   }, [vote]);
 
   return (
@@ -89,6 +93,25 @@ function VoteEditModal({ vote, open, onClose, reload }: { vote: VoteDetail; open
       <Field label="投票名称" required><Input value={name} onChange={(e) => setName(e.target.value)} /></Field>
       <Field label="说明"><Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} /></Field>
       <Field label="主视觉封面"><ImagePicker value={cover} onChange={(p) => setCover(p)} /></Field>
+      <div className="bg-ink-50 rounded-lg p-4 mb-4 space-y-3">
+        <div>
+          <p className="text-sm font-medium">大屏主视觉背景</p>
+          <p className="text-xs text-ink-300 mt-1">独立于上方手机封面。建议按现场 LED 实际分辨率导出，超宽屏使用超宽素材；图片将居中铺满并暗化。</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <ImagePicker value={screenBgImage} onChange={(p) => setScreenBgImage(p)} label="上传 LED 背景图" />
+          {screenBgImage && <Button variant="ghost" size="sm" className="hover:text-red-500" onClick={() => { setScreenBgImage(""); setScreenBgEnabled(false); }}>移除</Button>}
+        </div>
+        <label className="flex items-center gap-2 text-sm text-ink-700">
+          <Toggle checked={screenBgEnabled} disabled={!screenBgImage} onChange={setScreenBgEnabled} />
+          启用主视觉背景（关闭时仅显示群体氛围色）
+        </label>
+        <label className="flex items-center gap-3 text-sm text-ink-500">
+          <span className="shrink-0">暗化强度</span>
+          <input type="range" min={60} max={90} value={screenBgDim} disabled={!screenBgImage} onChange={(e) => setScreenBgDim(Number(e.target.value))} className="flex-1 accent-brand" />
+          <span className="num w-10 text-right">{screenBgDim}%</span>
+        </label>
+      </div>
       <Field label="状态">
         <select className="w-full h-9 px-3 rounded-lg border border-ink-200 text-sm bg-white" value={status} onChange={(e) => setStatus(e.target.value)}>
           <option value="draft">草稿</option>
@@ -119,7 +142,7 @@ function VoteEditModal({ vote, open, onClose, reload }: { vote: VoteDetail; open
           <Button onClick={async () => {
             await api(`/api/votes/${vote.id}`, {
               method: "PUT",
-              body: JSON.stringify({ name, description, cover: cover || null, wxAppid: wxAppid || null, wxSecret: wxSecret || null, status }),
+              body: JSON.stringify({ name, description, cover: cover || null, screenBgEnabled, screenBgImage: screenBgImage || null, screenBgDim, wxAppid: wxAppid || null, wxSecret: wxSecret || null, status }),
             });
             onClose();
             reload();
