@@ -60,15 +60,41 @@ export default function ScreenPage() {
     return () => { clearInterval(t); clearTimeout(hint); };
   }, []);
 
-  // 服务端状态 → 本地视图（键盘可临时覆盖，服务端变更时同步）
+  const serverViewSignatureRef = useRef<string | null>(null);
+  // 服务端"显示配置"变化时才同步视图；投票数据刷新不能覆盖大屏键盘临时选择的群体。
+  // 否则键盘切到观众投票后，手机每投一票都会因 SSE 刷新被拉回服务端保存的"总分"。
   useEffect(() => {
-    if (state) setView({ groupId: state.screenGroupId, qr: state.screenQrMode, showResult: state.screenShowResult, showPart: state.screenShowPart });
+    if (!state) return;
+    const nextView = { groupId: state.screenGroupId, qr: state.screenQrMode, showResult: state.screenShowResult, showPart: state.screenShowPart };
+    const signature = JSON.stringify(nextView);
+    if (serverViewSignatureRef.current === signature) return;
+    serverViewSignatureRef.current = signature;
+    setView(nextView);
   }, [state]);
 
   const groupsRef = useRef(state?.groups);
   groupsRef.current = state?.groups;
   const viewRef = useRef(view);
   viewRef.current = view;
+  const roundIdRef = useRef(roundId);
+  roundIdRef.current = roundId;
+
+  function applyView(next: { groupId: string | null; qr: boolean; showResult: boolean; showPart: boolean }) {
+    setView(next);
+    // 大屏浏览器若已登录管理员，键盘操作同时写入控制台配置；公开未登录大屏会返回 401/404，
+    // 静默保持本地临时视图，且不会被投票数据刷新覆盖（由上方显示配置签名判断保证）。
+    void fetch(`/api/console/${roundIdRef.current}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "screen",
+        screenGroupId: next.groupId,
+        screenQrMode: next.qr ? 1 : 0,
+        screenShowResult: next.showResult ? 1 : 0,
+        screenShowPart: next.showPart ? 1 : 0,
+      }),
+    }).catch(() => {});
+  }
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -77,11 +103,11 @@ export default function ScreenPage() {
       if (!groups || !v) return;
       const options: (string | null)[] = [null, ...groups.map((g) => g.id)];
       const idx = options.indexOf(v.groupId);
-      if (e.key === "q" || e.key === "Q" || e.key === "2") setView({ ...v, qr: !v.qr });
-      else if (e.key === "r" || e.key === "R") setView({ ...v, showResult: !v.showResult });
-      else if (e.key === "p" || e.key === "P") setView({ ...v, showPart: !v.showPart });
-      else if (e.key === "ArrowRight") setView({ ...v, groupId: options[(idx + 1) % options.length] });
-      else if (e.key === "ArrowLeft") setView({ ...v, groupId: options[(idx - 1 + options.length) % options.length] });
+      if (e.key === "q" || e.key === "Q" || e.key === "2") applyView({ ...v, qr: !v.qr });
+      else if (e.key === "r" || e.key === "R") applyView({ ...v, showResult: !v.showResult });
+      else if (e.key === "p" || e.key === "P") applyView({ ...v, showPart: !v.showPart });
+      else if (e.key === "ArrowRight") applyView({ ...v, groupId: options[(idx + 1) % options.length] });
+      else if (e.key === "ArrowLeft") applyView({ ...v, groupId: options[(idx - 1 + options.length) % options.length] });
       else if (e.key === "f" || e.key === "F") {
         if (document.fullscreenElement) document.exitFullscreen();
         else document.documentElement.requestFullscreen().catch(() => {});
