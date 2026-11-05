@@ -80,6 +80,9 @@ model Vote {
   id          BigInt   @id @default(autoincrement())
   name        String   @db.VarChar(128)
   cover       String?  @db.VarChar(255)
+  screenBgEnabled Int  @default(0) @map("screen_bg_enabled") @db.TinyInt
+  screenBgImage String? @map("screen_bg_image") @db.VarChar(255)
+  screenBgDim   Int     @default(78) @map("screen_bg_dim")
   description String?  @db.VarChar(500)
   ownerId     BigInt?  @map("owner_id")
   owner       User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)

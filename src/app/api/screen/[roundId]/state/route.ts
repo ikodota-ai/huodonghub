@@ -55,6 +55,9 @@ export async function GET(_req: Request, { params }: { params: { roundId: string
     return ok({
       voteName: round.vote.name,
       cover: round.vote.cover,
+      screenBgEnabled: round.vote.screenBgEnabled === 1,
+      screenBgImage: round.vote.screenBgImage,
+      screenBgDim: round.vote.screenBgDim,
       roundName: round.name,
       status: round.status,
       code: round.code,

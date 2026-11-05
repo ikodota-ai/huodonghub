@@ -27,6 +27,7 @@ export interface ContestantItem {
 
 export interface VoteDetail {
   id: string; name: string; cover: string | null; description: string | null;
+  screenBgEnabled: boolean; screenBgImage: string | null; screenBgDim: number;
   wxAppid: string; wxSecret: string; status: string;
   wxEffective: { source: "vote" | "global"; sourceName: string } | null;
   wxGlobalConfigured: boolean;

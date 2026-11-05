@@ -28,6 +28,7 @@ export async function GET(_req: Request, { params }: Ctx) {
     const wxGlobal = await getWxGlobalConfig();
     return ok({
       id: vote.id.toString(), name: vote.name, cover: vote.cover, description: vote.description,
+      screenBgEnabled: vote.screenBgEnabled === 1, screenBgImage: vote.screenBgImage, screenBgDim: vote.screenBgDim,
       wxAppid: vote.wxAppid ?? "", wxSecret: vote.wxSecret ?? "", status: vote.status,
       wxEffective: wxEffective ? { source: wxEffective.source, sourceName: wxEffective.sourceName } : null,
       wxGlobalConfigured: !!(wxGlobal.appid && wxGlobal.secret),
@@ -63,6 +64,9 @@ const updateSchema = z.object({
   name: z.string().min(1).max(128).optional(),
   description: z.string().max(500).optional(),
   cover: z.string().max(255).nullable().optional(),
+  screenBgEnabled: z.boolean().optional(),
+  screenBgImage: z.string().max(255).nullable().optional(),
+  screenBgDim: z.number().int().min(60).max(90).optional(),
   wxAppid: z.string().max(64).nullable().optional(),
   wxSecret: z.string().max(128).nullable().optional(),
   status: z.enum(["draft", "active", "finished", "archived"]).optional(),
@@ -75,7 +79,11 @@ export async function PUT(req: Request, { params }: Ctx) {
     if (!parsed.success) return fail("参数错误");
     const vote = await db.vote.findUnique({ where: { id: BigInt(params.id) }, select: { ownerId: true } });
     if (!vote || !canAccess(user, vote.ownerId)) return fail("投票不存在", 404);
-    await db.vote.update({ where: { id: BigInt(params.id) }, data: parsed.data });
+    const { screenBgEnabled, ...rest } = parsed.data;
+    await db.vote.update({
+      where: { id: BigInt(params.id) },
+      data: { ...rest, ...(screenBgEnabled === undefined ? {} : { screenBgEnabled: screenBgEnabled ? 1 : 0 }) },
+    });
     return ok(true);
   } catch (e) {
     return handleError(e);
