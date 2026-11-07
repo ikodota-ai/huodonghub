@@ -70,6 +70,9 @@
 | code | varchar(16) | 观众入口短码，/vote/{code} |
 | audience_start_at / audience_end_at | datetime | 观众投票起止，可空（手动开关优先） |
 | screen_show_result | tinyint | 大屏是否显示结果数值 |
+| screen_show_part | tinyint | 大屏是否显示实时参与率 |
+| screen_show_axis | tinyint | 大屏是否显示 Y 轴数值、刻度、轴线及横向刻度线，默认 1 |
+| screen_show_contribution | tinyint | 大屏是否显示柱顶“折算/分数”副数值，默认 1；不影响主数值与名次 |
 | audience_show_result | tinyint | 观众端是否可查看结果 |
 
 ### vote_contestants 选手（挂投票，跨轮复用）
@@ -101,6 +104,7 @@
 | max_votes | int | kind=vote：每人限票数 |
 | allow_repeat | tinyint | kind=vote：可否重复投同一选手 |
 | fixed_points | decimal(8,2) | kind=vote 固定分值模式：1票=N分；为空则归一模式 |
+| score_mode | varchar(12) | single（整体）/ sum（分值分配）/ weighted（百分制加权），默认 single |
 | restricted | tinyint | 1=限定名单（口令进入），0=开放扫码 |
 | sort | int | 大屏切换顺序 |
 
@@ -127,6 +131,31 @@
 
 唯一约束：(group_id, voter_id, contestant_id)
 
+`score_entries.score` 在细分模式下仍保存**服务端合成的百分制总分**，因此原群体均分、权重折算、计数器、大屏与聚合算法无需改变。
+
+### score_criteria 群体评分项配置
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | bigint PK | 复制轮次时生成新 ID，不复用旧项 |
+| group_id | bigint FK | 所属评分群体，删除群体级联删除 |
+| name | varchar(64) | 如第一道菜、口味、技法；同群体唯一 |
+| max_score | decimal(5,2) | sum 模式各项合计 100；weighted 模式固定 100 |
+| weight | decimal(5,2) NULL | weighted 模式比例，合计 100；sum/single 为空 |
+| sort | int | 展示与录入顺序 |
+
+索引：(group_id, sort)；唯一约束：(group_id, name)。有成绩后禁止修改评分模式、评分项、满分或比例，清空该群体成绩后才可调整。
+
+### score_item_entries 逐项成绩
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| id | bigint PK | |
+| score_entry_id | bigint FK | 对应合成总评分，删除总评分级联删除 |
+| criterion_id | bigint FK | 对应评分项配置 |
+| score | decimal(5,2) | 首版只接受 0～该项满分的整数 |
+| created_at | datetime | |
+
+唯一约束：(score_entry_id, criterion_id)；索引：(criterion_id)。总评分、逐项成绩与 `group_stats` 在同一事务写入，不会出现只有部分评分项的成绩。
+
 ### vote_entries 投票明细（kind=vote）
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -147,7 +176,7 @@
 
 **计分公式**（大屏与结果页只读本表+群体参与数，不扫明细）：
 
-- score 群体：选手群体得分 = value_cache ÷ 已提交评委数（平均分）；贡献 = 平均分 × weight%
+- score 群体：先得到每位评委总分（整体分或服务端合成分），选手群体得分 = value_cache ÷ 已提交评委数（平均分）；贡献 = 平均分 × weight%
 - vote 群体（归一）：贡献 = value_cache ÷ 群体参与人数 × weight
 - vote 群体（固定分值）：贡献 = value_cache × fixed_points
 - 轮次总分 = Σ 各群体贡献；聚合结果 = 多轮总分相加

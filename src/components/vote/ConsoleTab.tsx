@@ -71,11 +71,10 @@ export function ConsoleTab({ vote, reload }: { vote: VoteDetail; reload: () => v
             )}
             <Button variant="secondary" disabled={round.status === "finished"} onClick={() => action({ action: "status", status: "finished" })}>⏹ 结束本轮</Button>
             <span title={
-              round.status === "active" ? "投票进行中不可清空，请先暂停本轮"
-              : round.status === "finished" ? "已结束轮次为结果存档，不可清空；如需重投请新建轮次"
+              round.status !== "pending" ? "轮次已开始，进行中、暂停和结束状态均不可清分"
               : "清空本轮全部评分与投票数据（彩排后重置）"
             }>
-              <Button variant="ghost" className="hover:text-red-500" disabled={round.status === "active" || round.status === "finished"} onClick={async () => {
+              <Button variant="ghost" className="hover:text-red-500" disabled={round.status !== "pending"} onClick={async () => {
                 if (!(await confirm(`清空「${round.name}」的全部评分与投票数据？\n保留轮次配置、选手名单与评审绑定（用于彩排后重置）。\n清空后不可恢复。`, { title: "清空本轮数据", confirmText: "确认清空", danger: true }))) return;
                 try {
                   await action({ action: "resetData" });
@@ -173,6 +172,14 @@ export function ConsoleTab({ vote, reload }: { vote: VoteDetail; reload: () => v
             <label className="flex items-center gap-2 text-sm">
               <Toggle checked={round.screenShowResult === 1} onChange={(v) => action({ action: "screen", screenShowResult: v ? 1 : 0 })} />
               显示结果数值
+            </label>
+            <label className="flex items-center gap-2 text-sm" title="仅隐藏柱顶副数值：评分群体的“折算”和投票群体的“分数”；主数值与名次保持显示">
+              <Toggle checked={round.screenShowContribution === 1} onChange={(v) => action({ action: "screen", screenShowContribution: v ? 1 : 0 })} />
+              显示折算/分数
+            </label>
+            <label className="flex items-center gap-2 text-sm" title="关闭后隐藏左侧 Y 轴数值、刻度与横向刻度线">
+              <Toggle checked={round.screenShowAxis === 1} onChange={(v) => action({ action: "screen", screenShowAxis: v ? 1 : 0 })} />
+              显示Y轴刻度
             </label>
             <label className="flex items-center gap-2 text-sm">
               <Toggle checked={round.screenShowPart === 1} onChange={(v) => action({ action: "screen", screenShowPart: v ? 1 : 0 })} />

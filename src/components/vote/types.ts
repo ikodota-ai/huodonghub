@@ -1,3 +1,5 @@
+import type { CriterionConfig, ScoreMode } from "@/lib/score-criteria";
+
 export interface VoteGroupItem {
   id: string; name: string; kind: "score" | "vote"; weight: number;
   maxScore: number; maxVotes: number; allowRepeat: number;
@@ -5,13 +7,17 @@ export interface VoteGroupItem {
   avgMode: "scorers" | "roster"; pctMode: "batch" | "round";
   votePeriod: "total" | "daily";
   voteMode: "participants" | "top" | "share";
+  scoreMode: ScoreMode;
+  criteria: CriterionConfig[];
+  scoreEntryCount: number;
+  voteEntryCount: number;
   voterCount: number;
 }
 
 export interface RoundItem {
   id: string; name: string; seq: number; status: string; code: string;
   audienceStartAt: string | null; audienceEndAt: string | null;
-  screenShowResult: number; screenShowPart: number; audienceShowResult: number;
+  screenShowResult: number; screenShowPart: number; screenShowAxis: number; screenShowContribution: number; audienceShowResult: number;
   screenGroupId: string | null; screenQrMode: number;
   screenPageSize: number;
   screenSortMode: "total" | "number" | "seq";

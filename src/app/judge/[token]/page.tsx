@@ -4,14 +4,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { api, getFp, isWechat, contestantImg } from "@/lib/client";
 import { useDialogs } from "@/components/ui/dialogs";
+import { JudgeCriteriaForm } from "@/components/vote/JudgeCriteriaForm";
+import type { CriterionConfig, ScoreMode } from "@/lib/score-criteria";
+import { buildScoreItemDetails } from "@/lib/score-item-details";
 
 interface JudgeData {
   voteId: string;
+  roundId: string; groupId: string;
   voteName: string; roundName: string; roundStatus: string; groupName: string;
   kind: "score" | "vote"; maxScore: number; maxVotes: number; allowRepeat: number;
+  scoreMode: ScoreMode; criteria: CriterionConfig[];
   voterName: string; needBind: boolean; wxConfigured: boolean; hasVoted: boolean;
   currentBatch: number; batches: number[]; submittedBatches: number[]; currentBatchSubmitted: boolean;
-  submitted: { contestantId: string; score: number | null }[];
+  submitted: { contestantId: string; score: number | null; items: { criterionId: string; score: number }[] }[];
   contestants: { id: string; number: string; name: string; intro: string | null; image: string | null }[];
 }
 
@@ -97,7 +102,11 @@ export default function JudgePage() {
 
   if (data.currentBatchSubmitted || doneBatch === data.currentBatch) {
     const submittedRows = data.submitted
-      .map((s) => ({ ...s, contestant: data.contestants.find((c) => c.id === s.contestantId) }))
+      .map((s) => ({
+        ...s,
+        contestant: data.contestants.find((c) => c.id === s.contestantId),
+        itemDetails: data.kind === "score" ? buildScoreItemDetails(data.scoreMode, data.criteria, s.items) : [],
+      }))
       .filter((s) => s.contestant);
     // 分批模式且还有未提交批次：中场页——本批回显 + 等待下一批（轮询自动跟进）
     if (batchMode && !allSubmitted) {
@@ -111,9 +120,16 @@ export default function JudgePage() {
               <div className="mt-5 bg-white rounded-xl shadow-card text-left divide-y divide-ink-100">
                 <p className="px-4 py-2.5 text-xs text-ink-300">本批{data.kind === "score" ? "打分" : "投票"}明细（{data.voterName}）</p>
                 {submittedRows.map((s) => (
-                  <div key={s.contestantId} className="px-4 py-2.5 flex items-center justify-between text-sm">
-                    <span><span className="num text-ink-300 mr-1.5">{s.contestant!.number}</span>{s.contestant!.name}</span>
-                    {s.score != null && <span className="num font-bold text-brand-700">{s.score} 分</span>}
+                  <div key={s.contestantId} className="px-4 py-2.5 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span><span className="num text-ink-300 mr-1.5">{s.contestant!.number}</span>{s.contestant!.name}</span>
+                      {s.score != null && <span className="num font-bold text-brand-700">{s.score} 分</span>}
+                    </div>
+                    {s.itemDetails.length > 0 && (
+                      <div className="mt-1.5 space-y-1 text-xs text-ink-400">
+                        {s.itemDetails.map((item) => <p key={item.criterionId}>{item.name}：{item.score} 分，贡献 {item.contribution ?? "—"}</p>)}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -133,9 +149,16 @@ export default function JudgePage() {
             <div className="mt-5 bg-white rounded-xl shadow-card text-left divide-y divide-ink-100">
               <p className="px-4 py-2.5 text-xs text-ink-300">我的{data.kind === "score" ? "打分" : "投票"}明细（{data.voterName}）</p>
               {submittedRows.map((s) => (
-                <div key={s.contestantId} className="px-4 py-2.5 flex items-center justify-between text-sm">
-                  <span><span className="num text-ink-300 mr-1.5">{s.contestant!.number}</span>{s.contestant!.name}</span>
-                  {s.score != null && <span className="num font-bold text-brand-700">{s.score} 分</span>}
+                <div key={s.contestantId} className="px-4 py-2.5 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span><span className="num text-ink-300 mr-1.5">{s.contestant!.number}</span>{s.contestant!.name}</span>
+                    {s.score != null && <span className="num font-bold text-brand-700">{s.score} 分</span>}
+                  </div>
+                  {s.itemDetails.length > 0 && (
+                    <div className="mt-1.5 space-y-1 text-xs text-ink-400">
+                      {s.itemDetails.map((item) => <p key={item.criterionId}>{item.name}：{item.score} 分，贡献 {item.contribution ?? "—"}</p>)}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -166,6 +189,20 @@ export default function JudgePage() {
           <p className="text-ink-500 mt-3">{{ pending: "本轮评分尚未开始", paused: "本轮评分已暂停", finished: "本轮评分已结束" }[data.roundStatus]}</p>
         </div>
       </Center>
+    );
+  }
+
+  if (data.kind === "score" && data.scoreMode !== "single") {
+    return (
+      <JudgeCriteriaForm
+        key={`${token}-${data.roundId}-${data.groupId}-${data.currentBatch}`}
+        data={data}
+        token={token}
+        onSubmitted={async (batch) => {
+          await load();
+          setDoneBatch(batch);
+        }}
+      />
     );
   }
 

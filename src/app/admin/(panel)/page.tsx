@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api, fmtBytes } from "@/lib/client";
 import { Card, Badge, Skeleton, Button } from "@/components/ui";
+import { StorageUsageCard } from "@/components/admin/StorageUsageCard";
 
 interface Dash {
   groupCount: number; videoCount: number; activeVoteCount: number; activeRoundCount: number;
+  showStorageUsage: boolean;
   videoBytes: string; mediaBytes: number;
   health: { key: string; level: "ok" | "warn" | "alert"; label: string; detail: string }[];
   recentGroups: { id: string; name: string; code: string; videoCount: number; status: number }[];
@@ -52,6 +54,8 @@ export default function Dashboard() {
           </Card>
         ))}
       </div>
+
+      {data.showStorageUsage && <StorageUsageCard />}
 
       {data.health.some((h) => h.level !== "ok") && (
         <Card className="p-4 mb-8 border-l-4 border-l-amber-400">

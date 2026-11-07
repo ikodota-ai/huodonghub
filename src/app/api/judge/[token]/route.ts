@@ -5,6 +5,7 @@ import { fallbackVoterKey, clientIp } from "@/lib/fingerprint";
 import { publish, screenChannel } from "@/lib/sse";
 import { wxOpenidFromCookies } from "@/lib/wx-openid";
 import { getWxConfigFor } from "@/lib/settings";
+import { computeScoreTotal, ScoreMode, validateCriteria, validateCriterionItems } from "@/lib/score-criteria";
 
 type Ctx = { params: { token: string } };
 
@@ -14,6 +15,7 @@ async function loadVoter(token: string) {
     include: {
       group: {
         include: {
+          scoreCriteria: { orderBy: { sort: "asc" } },
           round: {
             include: {
               vote: true,
@@ -40,28 +42,35 @@ export async function GET(_req: Request, { params }: Ctx) {
     // 当前批次作用域：currentBatch=0 → 全员（旧行为）；N → 仅第 N 批选手
     const inScope = (cid: string) => currentBatch === 0 || (batchOf.get(cid) ?? 0) === currentBatch;
     // 已提交明细（含批次归属，用于回显与"每批可提交一次"的判定）
-    let submitted: { contestantId: string; score: number | null }[] = [];
+    let submitted: { contestantId: string; score: number | null; items: { criterionId: string; score: number }[] }[] = [];
     let submittedBatches: number[] = [];
     if (voter.hasVoted === 1) {
       if (group.kind === "score") {
-        const entries = await db.scoreEntry.findMany({ where: { groupId: group.id, voterId: voter.id } });
+        const entries = await db.scoreEntry.findMany({ where: { groupId: group.id, voterId: voter.id }, include: { scoreItems: true } });
         submittedBatches = [...new Set(entries.map((e) => batchOf.get(e.contestantId.toString()) ?? 0))];
-        submitted = entries.filter((e) => inScope(e.contestantId.toString())).map((e) => ({ contestantId: e.contestantId.toString(), score: Number(e.score) }));
+        submitted = entries.filter((e) => inScope(e.contestantId.toString())).map((e) => ({
+          contestantId: e.contestantId.toString(), score: Number(e.score),
+          items: e.scoreItems.map((item) => ({ criterionId: item.criterionId.toString(), score: Number(item.score) })),
+        }));
       } else {
         const entries = await db.voteEntry.findMany({ where: { groupId: group.id, voterKey: `voter_${voter.id}` } });
         submittedBatches = [...new Set(entries.map((e) => batchOf.get(e.contestantId.toString()) ?? 0))];
-        submitted = entries.filter((e) => inScope(e.contestantId.toString())).map((e) => ({ contestantId: e.contestantId.toString(), score: null }));
+        submitted = entries.filter((e) => inScope(e.contestantId.toString())).map((e) => ({ contestantId: e.contestantId.toString(), score: null, items: [] }));
       }
     }
     // 批次提交判定：全员模式（currentBatch=0）任何提交即锁定；分批模式按批次判定
     const currentBatchSubmitted = currentBatch === 0 ? voter.hasVoted === 1 : submittedBatches.includes(currentBatch);
     return ok({
       voteId: round.vote.id.toString(),
+      roundId: round.id.toString(),
+      groupId: group.id.toString(),
       voteName: round.vote.name,
       roundName: round.name,
       roundStatus: round.status,
       groupName: group.name,
       kind: group.kind,
+      scoreMode: group.scoreMode,
+      criteria: group.scoreCriteria.map((criterion) => ({ id: criterion.id.toString(), name: criterion.name, maxScore: Number(criterion.maxScore), weight: criterion.weight == null ? null : Number(criterion.weight), sort: criterion.sort })),
       maxScore: group.maxScore,
       maxVotes: group.maxVotes,
       allowRepeat: group.allowRepeat,
@@ -91,7 +100,11 @@ export async function GET(_req: Request, { params }: Ctx) {
 }
 
 const submitSchema = z.object({
-  scores: z.array(z.object({ contestantId: z.coerce.bigint(), score: z.number().min(0) })).optional(),
+  scores: z.array(z.object({
+    contestantId: z.coerce.bigint(),
+    score: z.number().min(0).optional(),
+    items: z.array(z.object({ criterionId: z.string().max(64), score: z.number() })).optional(),
+  })).optional(),
   contestantIds: z.array(z.coerce.bigint()).optional(),
   fp: z.string().max(128).optional(),
 });
@@ -130,15 +143,41 @@ export async function POST(req: Request, { params }: Ctx) {
     if (group.kind === "score") {
       const scores = parsed.data.scores ?? [];
       if (scores.length === 0) return fail("请为选手打分");
+      if (new Set(scores.map((s) => s.contestantId.toString())).size !== scores.length) return fail("选手重复提交");
+      const mode = group.scoreMode as ScoreMode;
+      const criteria = group.scoreCriteria.map((criterion) => ({ id: criterion.id.toString(), name: criterion.name, maxScore: Number(criterion.maxScore), weight: criterion.weight == null ? null : Number(criterion.weight), sort: criterion.sort }));
+      if (mode !== "single") {
+        const configError = validateCriteria(mode, group.maxScore, criteria);
+        if (configError) return fail(`评分规则配置不完整：${configError}`, 409);
+      }
+      const prepared: { contestantId: bigint; score: number; items: { criterionId: bigint; score: number }[] }[] = [];
       for (const s of scores) {
         if (!allowed.has(s.contestantId.toString())) return fail("存在无效选手");
-        if (s.score > group.maxScore) return fail(`分数不能超过 ${group.maxScore}`);
+        if (mode === "single") {
+          if (s.score == null) return fail("请填写分数");
+          if (s.score > group.maxScore) return fail(`分数不能超过 ${group.maxScore}`);
+          prepared.push({ contestantId: s.contestantId, score: s.score, items: [] });
+        } else {
+          const items = s.items ?? [];
+          const itemError = validateCriterionItems(criteria, items);
+          if (itemError) return fail(itemError);
+          prepared.push({
+            contestantId: s.contestantId,
+            score: computeScoreTotal(mode, criteria, items),
+            items: items.map((item) => ({ criterionId: BigInt(item.criterionId), score: item.score })),
+          });
+        }
       }
       await db.$transaction(async (tx) => {
-        for (const s of scores) {
-          await tx.scoreEntry.create({
+        for (const s of prepared) {
+          const entry = await tx.scoreEntry.create({
             data: { groupId: group.id, voterId: voter.id, contestantId: s.contestantId, score: s.score },
           });
+          if (s.items.length > 0) {
+            await tx.scoreItemEntry.createMany({
+              data: s.items.map((item) => ({ scoreEntryId: entry.id, criterionId: item.criterionId, score: item.score })),
+            });
+          }
           await tx.groupStat.upsert({
             where: { groupId_contestantId: { groupId: group.id, contestantId: s.contestantId } },
             update: { valueCache: { increment: s.score } },

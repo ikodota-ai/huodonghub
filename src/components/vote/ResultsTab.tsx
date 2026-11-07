@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
 import { Button, Card, Skeleton, Empty } from "@/components/ui";
 import { VoteDetail } from "./types";
+import { ScoreGroupBreakdown, type ScoreGroupBreakdownData } from "./ScoreGroupBreakdown";
 
 interface RoundResults {
   voteName: string; roundName: string; status: string;
@@ -30,11 +31,10 @@ export interface ContestantDetail {
   contestant: { id: string; number: string; name: string; image: string | null };
   rounds: {
     roundId: string; roundName: string; participated: boolean; batch: number; total: number | null;
-    groups: {
+    groups: ({
       name: string; kind: string; weight: number; raw: number; contribution: number; participants: number;
       fixedPoints: number | null; rate: number | null; voteMode: string | null;
-      judges: { name: string; score: number; share: number }[];
-    }[];
+    } & ScoreGroupBreakdownData)[];
   }[];
 }
 
@@ -104,6 +104,7 @@ export function ResultsTab({ vote }: { vote: VoteDetail }) {
               {vote.rounds.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
             <Button variant="secondary" size="sm" onClick={() => window.open(`/api/results/round/${roundId}/csv`)}>导出 CSV</Button>
+            <Button variant="secondary" size="sm" onClick={() => window.open(`/api/results/round/${roundId}/score-items/csv`)}>逐项 CSV</Button>
           </div>
         )}
         {mode === "aggregate" && (
@@ -279,14 +280,7 @@ export function ResultsTab({ vote }: { vote: VoteDetail }) {
                                             </span>
                                           )}
                                           {open && g.judges.length > 0 && (
-                                            <div className="mt-1.5 bg-white rounded-lg border border-ink-100 divide-y divide-ink-50 text-left">
-                                              {g.judges.map((j, ji) => (
-                                                <div key={ji} className="flex items-center justify-between gap-3 px-2.5 py-1.5 text-xs">
-                                                  <span className="text-ink-700">{j.name}</span>
-                                                  <span className="num whitespace-nowrap">{j.score} 分 <span className="text-ink-300">折算 {j.share}</span></span>
-                                                </div>
-                                              ))}
-                                            </div>
+                                            <ScoreGroupBreakdown group={g} className="mt-1.5 min-w-[290px]" />
                                           )}
                                         </td>
                                       );

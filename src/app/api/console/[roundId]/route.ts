@@ -5,10 +5,11 @@ import { ok, fail, handleError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { publish, screenChannel } from "@/lib/sse";
 import { canAccess, voteOwnerByRound } from "@/lib/ownership";
+import { isRoundDraft, roundDataLockedMessage } from "@/lib/round-lifecycle";
 
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("status"), status: z.enum(["pending", "active", "paused", "finished"]) }),
-  z.object({ action: z.literal("screen"), screenGroupId: z.coerce.bigint().nullable().optional(), screenQrMode: z.number().int().min(0).max(1).optional(), screenShowResult: z.number().int().min(0).max(1).optional(), screenShowPart: z.number().int().min(0).max(1).optional(), screenPageSize: z.number().int().min(0).max(50).optional(), screenSortMode: z.enum(["total", "number", "seq"]).optional() }),
+  z.object({ action: z.literal("screen"), screenGroupId: z.coerce.bigint().nullable().optional(), screenQrMode: z.number().int().min(0).max(1).optional(), screenShowResult: z.number().int().min(0).max(1).optional(), screenShowPart: z.number().int().min(0).max(1).optional(), screenShowAxis: z.number().int().min(0).max(1).optional(), screenShowContribution: z.number().int().min(0).max(1).optional(), screenPageSize: z.number().int().min(0).max(50).optional(), screenSortMode: z.enum(["total", "number", "seq"]).optional() }),
   z.object({ action: z.literal("countdown"), seconds: z.number().int().min(0).max(86400) }),
   z.object({ action: z.literal("batch"), currentBatch: z.number().int().min(0).max(99) }),
   z.object({ action: z.literal("resetData") }),
@@ -120,6 +121,8 @@ export async function POST(req: Request, { params }: { params: { roundId: string
           screenQrMode: d.screenQrMode,
           screenShowResult: d.screenShowResult,
           screenShowPart: d.screenShowPart,
+          screenShowAxis: d.screenShowAxis,
+          screenShowContribution: d.screenShowContribution,
           screenPageSize: d.screenPageSize,
           screenSortMode: d.screenSortMode,
         },
@@ -137,10 +140,9 @@ export async function POST(req: Request, { params }: { params: { roundId: string
       await db.voteRound.update({ where: { id: roundId }, data: { currentBatch: d.currentBatch } });
     } else if (d.action === "resetData") {
       // 彩排重置：清空本轮全部评分/投票流水与计数器，重置评委提交状态；保留配置、名单与绑定
-      // 仅 pending/paused 可清空（彩排场景）；active 防现场误清；finished 为结果存档，重投请新建轮次
       const round = await db.voteRound.findUnique({ where: { id: roundId }, select: { status: true } });
-      if (round?.status === "active") return fail("投票进行中，请先暂停本轮再清空数据", 409);
-      if (round?.status === "finished") return fail("已结束的轮次不可清空（结果存档）。如需重新投票，请新建轮次", 409);
+      if (!round) return fail("轮次不存在", 404);
+      if (!isRoundDraft(round.status)) return fail(roundDataLockedMessage(round.status), 409);
       const groups = await db.voteGroup.findMany({ where: { roundId }, select: { id: true } });
       const groupIds = groups.map((g) => g.id);
       await db.$transaction([

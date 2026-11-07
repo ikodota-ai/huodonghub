@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     const maxSeq = await db.voteRound.aggregate({ where: { voteId }, _max: { seq: true } });
     const prevRound = await db.voteRound.findFirst({
       where: { voteId }, orderBy: { seq: "desc" },
-      include: { groups: true, roundContestants: true },
+      include: { groups: { include: { scoreCriteria: { orderBy: { sort: "asc" } } } }, roundContestants: true },
     });
     const round = await db.voteRound.create({
       data: {
@@ -27,6 +27,10 @@ export async function POST(req: Request) {
           create: prevRound?.groups.map((g) => ({
             name: g.name, kind: g.kind, weight: g.weight, maxScore: g.maxScore, maxVotes: g.maxVotes,
             allowRepeat: g.allowRepeat, fixedPoints: g.fixedPoints, restricted: g.restricted, sort: g.sort,
+            avgMode: g.avgMode, pctMode: g.pctMode, votePeriod: g.votePeriod, voteMode: g.voteMode, scoreMode: g.scoreMode,
+            scoreCriteria: {
+              create: g.scoreCriteria.map((criterion) => ({ name: criterion.name, maxScore: criterion.maxScore, weight: criterion.weight, sort: criterion.sort })),
+            },
           })) ?? [],
         },
         roundContestants: {

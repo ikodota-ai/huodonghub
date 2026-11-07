@@ -95,53 +95,88 @@ export async function GET(req: Request, { params }: Ctx) {
 
 const castSchema = z.object({ contestantId: z.coerce.bigint(), fp: z.string().max(128).optional() });
 
+type PostContext = {
+  round_id: bigint;
+  vote_id: bigint;
+  status: string;
+  audience_start_at: Date | null;
+  audience_end_at: Date | null;
+  current_batch: number;
+  group_id: bigint | null;
+  max_votes: number | null;
+  allow_repeat: number | null;
+  vote_period: string | null;
+  contestant_batch: number | null;
+};
+
 export async function POST(req: Request, { params }: Ctx) {
   try {
-    const round = await loadRound(params.code);
-    if (!round) return fail("投票链接无效", 404);
-    if (roundPhase(round) !== "active") return fail("当前不在投票时间", 403);
-    const group = round.groups[0];
-    if (!group) return fail("本轮未开放观众投票", 403);
-
     const parsed = castSchema.safeParse(await req.json());
     if (!parsed.success) return fail("参数错误");
-    const openid = await wxOpenidFromCookies(round.voteId);
+    const contestantId = parsed.data.contestantId;
+    const rows = await db.$queryRaw<PostContext[]>`
+      SELECT r.id AS round_id, r.vote_id, r.status, r.audience_start_at, r.audience_end_at, r.current_batch,
+        g.id AS group_id, g.max_votes, g.allow_repeat, g.vote_period, rc.batch AS contestant_batch
+      FROM vote_rounds r
+      LEFT JOIN vote_groups g ON g.round_id = r.id AND g.kind = 'vote' AND g.restricted = 0
+      LEFT JOIN round_contestants rc ON rc.round_id = r.id AND rc.contestant_id = ${contestantId}
+      WHERE r.code = ${params.code}
+      ORDER BY g.sort ASC
+      LIMIT 1
+    `;
+    const context = rows[0];
+    if (!context) return fail("投票链接无效", 404);
+    if (roundPhase({ status: context.status, audienceStartAt: context.audience_start_at, audienceEndAt: context.audience_end_at }) !== "active") {
+      return fail("当前不在投票时间", 403);
+    }
+    if (context.group_id === null) return fail("本轮未开放观众投票", 403);
+    const group = {
+      id: context.group_id,
+      maxVotes: context.max_votes!,
+      allowRepeat: context.allow_repeat!,
+      votePeriod: context.vote_period!,
+    };
+
+    const openid = await wxOpenidFromCookies(context.vote_id);
     const voterKey = openid || (parsed.data.fp ? fallbackVoterKey(parsed.data.fp) : null);
     if (!voterKey) return fail("无法确定身份，请刷新重试", 403);
 
-    // 当前批次作用域：只能为当前批次选手投票，配额按批次独立计算
-    const currentBatch = round.currentBatch;
-    const scopeContestants = round.roundContestants.filter((rc) => currentBatch === 0 || rc.batch === currentBatch);
-    const contestantId = parsed.data.contestantId;
-    const allowed = new Set(scopeContestants.map((rc) => rc.contestantId.toString()));
-    if (!allowed.has(contestantId.toString())) return fail(currentBatch > 0 ? "该选手不在当前投票批次" : "选手无效");
+    const currentBatch = context.current_batch;
+    if (context.contestant_batch === null || (currentBatch > 0 && context.contestant_batch !== currentBatch)) {
+      return fail(currentBatch > 0 ? "该选手不在当前投票批次" : "选手无效");
+    }
 
     const ip = clientIp();
     if (await ipThrottleHit(group.id, ip)) return fail("当前网络投票过于频繁，请稍后再试", 429);
 
-    const scopeIds = new Set(scopeContestants.map((rc) => rc.contestantId.toString()));
     // 限票周期：daily=只统计今天的票（跨天自动重置配额与"不可重复投同一选手"）
     const dayStart = group.votePeriod === "daily" ? chinaDayStart() : null;
-    const allEntries = await db.voteEntry.findMany({ where: { groupId: group.id, voterKey } });
-    const usedEntries = allEntries.filter((e) => scopeIds.has(e.contestantId.toString()) && (!dayStart || e.createdAt >= dayStart));
+    const scopedEntries = await db.$queryRaw<{ contestant_id: bigint; created_at: Date }[]>`
+      SELECT ve.contestant_id, ve.created_at
+      FROM vote_entries ve
+      JOIN round_contestants rc ON rc.round_id = ${context.round_id} AND rc.contestant_id = ve.contestant_id
+      WHERE ve.group_id = ${group.id} AND ve.voter_key = ${voterKey}
+        AND (${currentBatch} = 0 OR rc.batch = ${currentBatch})
+    `;
+    const usedEntries = scopedEntries.filter((entry) => !dayStart || entry.created_at >= dayStart);
     if (usedEntries.length >= group.maxVotes) {
       return fail(group.votePeriod === "daily"
         ? (currentBatch > 0 ? "您本批今天的票数已用完" : "您今天的票数已用完，明天可继续投")
         : (currentBatch > 0 ? "您本批的票数已用完" : "您的票数已用完"), 403);
     }
-    if (group.allowRepeat !== 1 && usedEntries.some((e) => e.contestantId === contestantId)) {
+    if (group.allowRepeat !== 1 && usedEntries.some((entry) => entry.contestant_id === contestantId)) {
       return fail("不可重复投同一选手", 403);
     }
 
     await db.$transaction([
       db.voteEntry.create({ data: { groupId: group.id, contestantId, voterKey, ip } }),
-      db.groupStat.upsert({
-        where: { groupId_contestantId: { groupId: group.id, contestantId } },
-        update: { valueCache: { increment: 1 } },
-        create: { groupId: group.id, contestantId, valueCache: 1 },
-      }),
+      db.$executeRaw`
+        INSERT INTO group_stats (group_id, contestant_id, value_cache)
+        VALUES (${group.id}, ${contestantId}, 1)
+        ON DUPLICATE KEY UPDATE value_cache = value_cache + 1
+      `,
     ]);
-    publish(screenChannel(round.id.toString()), "update", { reason: "audience_vote" });
+    publish(screenChannel(context.round_id.toString()), "update", { reason: "audience_vote" });
     return ok({ used: usedEntries.length + 1, remaining: group.maxVotes - usedEntries.length - 1 });
   } catch (e) {
     return handleError(e);

@@ -5,7 +5,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 [ -f deploy-next-build.tar.gz ] || { echo "错误：未找到 deploy-next-build.tar.gz（先通过宝塔面板上传到项目根目录）"; exit 1; }
 
-echo "==> 1/4 解压新构建"
+echo "==> 1/5 解压新构建"
 rm -rf .next-build
 tar -xzf deploy-next-build.tar.gz
 
@@ -19,16 +19,19 @@ if [ "$NEW_BUILD_ID" = "$CUR_BUILD_ID" ]; then
   sleep 8
 fi
 
-echo "==> 2/4 数据库迁移"
+echo "==> 2/5 数据库迁移"
 npx prisma migrate deploy
 npx prisma generate
 
-echo "==> 3/4 切换 .next"
+echo "==> 3/5 同步静态资源并公网验证"
+node scripts/sync-static-to-oss.js upload .next-build
+
+echo "==> 4/5 切换 .next"
 rm -rf .next.old
 [ -d .next ] && mv .next .next.old
 mv .next-build .next
 rm -rf .next.old deploy-next-build.tar.gz
 
-echo "==> 4/4 重启服务"
+echo "==> 5/5 重启服务"
 pm2 restart huodongpeitai
 echo "完成。健康检查：curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/admin/login"

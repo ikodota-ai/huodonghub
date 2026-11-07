@@ -23,7 +23,10 @@ rm -rf .next-build
 if [[ "${NODE_OPTIONS:-}" != *max-old-space-size* ]]; then
   export NODE_OPTIONS="${NODE_OPTIONS:-} --max-old-space-size=${BUILD_HEAP_MB:-3072}"
 fi
+export NEXT_ASSET_PREFIX="$(node -e 'require("@next/env").loadEnvConfig(process.cwd()); process.stdout.write(process.env.NEXT_ASSET_PREFIX || "")')"
 BUILD_DIST_DIR=.next-build npm run build
+echo "    同步静态资源并在公网验证（失败则保留线上旧版本）"
+node scripts/sync-static-to-oss.js upload .next-build
 rm -rf .next.old
 [ -d .next ] && mv .next .next.old
 mv .next-build .next

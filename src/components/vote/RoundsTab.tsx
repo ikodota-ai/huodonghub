@@ -6,6 +6,8 @@ import { api } from "@/lib/client";
 import { Button, Card, Badge, Field, Input, Toggle, Modal } from "@/components/ui";
 import { useDialogs } from "@/components/ui/dialogs";
 import { VoteDetail, RoundItem, ROUND_STATUS } from "./types";
+import { ScoreCriteriaEditor } from "./ScoreCriteriaEditor";
+import { validateCriteria, type CriterionConfig, type ScoreMode } from "@/lib/score-criteria";
 
 interface GroupDraft {
   enabled: boolean;
@@ -21,14 +23,18 @@ interface GroupDraft {
   votePeriod: "total" | "daily"; // 开放投票限票周期：total=全程共N票（默认）daily=每天N票
   voteMode: "participants" | "top" | "share"; // 投票计分方式：participants=票/参与人数 top=相对最高票（推荐）share=票仓占比
   fixedPoints: number | null;    // 投票固定分值：null=得票率模式，否则 1 票=fixedPoints 分
+  scoreMode: ScoreMode;
+  criteria: CriterionConfig[];
+  scoreEntryCount: number;
+  voteEntryCount: number;
   needBind?: boolean;
   id?: string;
 }
 
 const PRESETS: { key: string; label: string; draft: Omit<GroupDraft, "enabled"> }[] = [
-  { key: "expert", label: "专家评审", draft: { name: "专家评审", kind: "score", weight: 60, maxScore: 100, maxVotes: 3, allowRepeat: false, restricted: true, avgMode: "scorers", pctMode: "batch", votePeriod: "total", voteMode: "participants", fixedPoints: null } },
-  { key: "public", label: "大众评审", draft: { name: "大众评审", kind: "score", weight: 20, maxScore: 100, maxVotes: 3, allowRepeat: false, restricted: true, avgMode: "scorers", pctMode: "batch", votePeriod: "total", voteMode: "participants", fixedPoints: null, needBind: true } },
-  { key: "audience", label: "观众评审", draft: { name: "观众评审", kind: "vote", weight: 20, maxScore: 100, maxVotes: 3, allowRepeat: false, restricted: false, avgMode: "scorers", pctMode: "batch", votePeriod: "total", voteMode: "top", fixedPoints: null } },
+  { key: "expert", label: "专家评审", draft: { name: "专家评审", kind: "score", weight: 60, maxScore: 100, maxVotes: 3, allowRepeat: false, restricted: true, avgMode: "scorers", pctMode: "batch", votePeriod: "total", voteMode: "participants", fixedPoints: null, scoreMode: "single", criteria: [], scoreEntryCount: 0, voteEntryCount: 0 } },
+  { key: "public", label: "大众评审", draft: { name: "大众评审", kind: "score", weight: 20, maxScore: 100, maxVotes: 3, allowRepeat: false, restricted: true, avgMode: "scorers", pctMode: "batch", votePeriod: "total", voteMode: "participants", fixedPoints: null, needBind: true, scoreMode: "single", criteria: [], scoreEntryCount: 0, voteEntryCount: 0 } },
+  { key: "audience", label: "观众评审", draft: { name: "观众评审", kind: "vote", weight: 20, maxScore: 100, maxVotes: 3, allowRepeat: false, restricted: false, avgMode: "scorers", pctMode: "batch", votePeriod: "total", voteMode: "top", fixedPoints: null, scoreMode: "single", criteria: [], scoreEntryCount: 0, voteEntryCount: 0 } },
 ];
 
 export function RoundsTab({ vote, reload }: { vote: VoteDetail; reload: () => void }) {
@@ -77,7 +83,7 @@ function RoundEditor({ vote, round, reload, onStatus }: {
   vote: VoteDetail; round: RoundItem; reload: () => Promise<void> | void;
   onStatus: (r: RoundItem, s: string) => void;
 }) {
-  const { prompt, toast, dialogNode } = useDialogs();
+  const { prompt, confirm, toast, dialogNode } = useDialogs();
   const [name, setName] = useState(round.name);
   const [groups, setGroups] = useState<GroupDraft[]>(() => {
     const byName = new Map(round.groups.map((g) => [g.name, g]));
@@ -89,6 +95,7 @@ function RoundEditor({ vote, round, reload, onStatus }: {
           weight: existing.weight, maxScore: existing.maxScore, maxVotes: existing.maxVotes,
           allowRepeat: existing.allowRepeat === 1, restricted: existing.restricted === 1,
           avgMode: existing.avgMode, pctMode: existing.pctMode, votePeriod: existing.votePeriod, voteMode: existing.voteMode ?? "participants", fixedPoints: existing.fixedPoints,
+          scoreMode: existing.scoreMode, criteria: existing.criteria, scoreEntryCount: existing.scoreEntryCount, voteEntryCount: existing.voteEntryCount,
         };
       }
       return { enabled: false, ...p.draft };
@@ -99,6 +106,7 @@ function RoundEditor({ vote, round, reload, onStatus }: {
           enabled: true, id: g.id, name: g.name, kind: g.kind, weight: g.weight,
           maxScore: g.maxScore, maxVotes: g.maxVotes, allowRepeat: g.allowRepeat === 1, restricted: g.restricted === 1,
           avgMode: g.avgMode, pctMode: g.pctMode, votePeriod: g.votePeriod, voteMode: g.voteMode ?? "participants", fixedPoints: g.fixedPoints,
+          scoreMode: g.scoreMode, criteria: g.criteria, scoreEntryCount: g.scoreEntryCount, voteEntryCount: g.voteEntryCount,
         });
       }
     }
@@ -115,6 +123,7 @@ function RoundEditor({ vote, round, reload, onStatus }: {
   const [msg, setMsg] = useState("");
   const [audienceShowResult, setAudienceShowResult] = useState(round.audienceShowResult === 1);
   const [confirmDel, setConfirmDel] = useState(false);
+  const [clearingGroupId, setClearingGroupId] = useState<string | null>(null);
 
   const totalWeight = groups.filter((g) => g.enabled).reduce((s, g) => s + (Number(g.weight) || 0), 0);
   const audienceUrl = typeof window !== "undefined" ? `${location.origin}/vote/${round.code}` : "";
@@ -122,6 +131,7 @@ function RoundEditor({ vote, round, reload, onStatus }: {
 
   const selectedBatches = Array.from(contestantIds).map((id) => batchSeq.get(id)?.batch ?? 0);
   const mixedBatch = selectedBatches.some((b) => b === 0) && selectedBatches.some((b) => b > 0);
+  const criteriaError = groups.find((group) => group.enabled && group.kind === "score" && group.scoreMode !== "single" && validateCriteria(group.scoreMode, group.maxScore, group.criteria));
 
   function patchGroup(idx: number, patch: Partial<GroupDraft>) {
     setGroups((gs) => gs.map((g, i) => (i === idx ? { ...g, ...patch } : g)));
@@ -134,6 +144,22 @@ function RoundEditor({ vote, round, reload, onStatus }: {
       n.set(id, { ...cur, ...patch });
       return n;
     });
+  }
+
+  async function clearTestVotes(group: GroupDraft, idx: number) {
+    if (!group.id) return;
+    if (!(await confirm(`清空「${group.name}」的 ${group.voteEntryCount} 张测试票？\n仅清除本群体票数与统计，保留配置、选手、其他群体数据和评审绑定。\n清空后不可恢复。`, { title: "清空测试票", confirmText: "确认清空", danger: true }))) return;
+    setClearingGroupId(group.id);
+    try {
+      await api(`/api/vote-groups/${group.id}/reset`, { method: "POST" });
+      patchGroup(idx, { voteEntryCount: 0 });
+      toast(`已清空${group.name}的测试票`);
+      await reload();
+    } catch (error) {
+      toast((error as Error).message);
+    } finally {
+      setClearingGroupId(null);
+    }
   }
 
   // 按选手库顺序为已选选手生成出场顺序 1..n
@@ -169,6 +195,7 @@ function RoundEditor({ vote, round, reload, onStatus }: {
   async function save() {
     if (totalWeight !== 100) { setMsg("权重合计必须等于 100%"); return; }
     if (mixedBatch) { setMsg("批次设置不能混合：要么全部为 0（全员投票），要么全部 ≥1（分批比拼）"); return; }
+    if (criteriaError) { setMsg(`${criteriaError.name}：${validateCriteria(criteriaError.scoreMode, criteriaError.maxScore, criteriaError.criteria)}`); return; }
     setSaving(true); setMsg("");
     try {
       await api(`/api/rounds/${round.id}`, { method: "PUT", body: JSON.stringify({ name, audienceShowResult: audienceShowResult ? 1 : 0 }) });
@@ -180,6 +207,8 @@ function RoundEditor({ vote, round, reload, onStatus }: {
           avgMode: g.avgMode, pctMode: g.pctMode, votePeriod: g.votePeriod,
           voteMode: g.voteMode,
           fixedPoints: g.kind === "vote" && g.fixedPoints != null && g.fixedPoints > 0 ? g.fixedPoints : null,
+          scoreMode: g.kind === "score" ? g.scoreMode : "single",
+          criteria: g.kind === "score" && g.scoreMode !== "single" ? g.criteria : [],
         };
         if (g.enabled && g.id) {
           // 按界面显示顺序回写 sort，修复历史遗留的群体排序错乱（专家评审→大众评审→观众评审→自定义）
@@ -248,11 +277,11 @@ function RoundEditor({ vote, round, reload, onStatus }: {
         <p className="text-xs text-ink-300 mb-4">勾选启用群体并设置权重，合计必须等于 100%。</p>
         <div className="space-y-3">
           {groups.map((g, idx) => (
-            <div key={g.name + idx} className={`rounded-lg border p-4 transition ${g.enabled ? "border-brand/40 bg-brand-50/40" : "border-ink-100"}`}>
+            <div key={g.name + idx} data-testid={`vote-group-${g.name}`} className={`rounded-lg border p-4 transition ${g.enabled ? "border-brand/40 bg-brand-50/40" : "border-ink-100"}`}>
               <div className="flex flex-wrap items-center gap-3">
                 <Toggle checked={g.enabled} onChange={(v) => patchGroup(idx, { enabled: v })} />
                 <span className="font-medium w-20">{g.name}</span>
-                <select className="h-8 rounded border border-ink-200 text-sm bg-white" value={g.kind} disabled={!g.enabled}
+                <select className="h-8 rounded border border-ink-200 text-sm bg-white" value={g.kind} disabled={!g.enabled || g.scoreEntryCount > 0 || round.status !== "pending"}
                   onChange={(e) => patchGroup(idx, { kind: e.target.value as "score" | "vote" })}>
                   <option value="score">评分制</option>
                   <option value="vote">投票制</option>
@@ -264,7 +293,7 @@ function RoundEditor({ vote, round, reload, onStatus }: {
                 {g.kind === "score" && g.enabled && (
                   <>
                     <label className="text-sm text-ink-500 flex items-center gap-1">
-                      满分 <Input type="number" className="w-20 h-8" value={g.maxScore}
+                      满分 <Input type="number" className="w-20 h-8" value={g.maxScore} disabled={g.scoreMode !== "single" || g.scoreEntryCount > 0 || round.status !== "pending"}
                         onChange={(e) => patchGroup(idx, { maxScore: Number(e.target.value) })} />
                     </label>
                     <label className="text-sm text-ink-500 flex items-center gap-1">
@@ -355,6 +384,30 @@ function RoundEditor({ vote, round, reload, onStatus }: {
                           : `计分：得票率 = 票数 ÷ ${g.pctMode === "round" ? "整轮" : "本批"}参与人数 × 权重%——1人1票传统口径；开启每天重置/允许重复投后得票率可能超 100%，按 100% 封顶`}
                 </p>
               )}
+              {g.enabled && g.kind === "score" && (
+                <ScoreCriteriaEditor
+                  mode={g.scoreMode}
+                  maxScore={g.maxScore}
+                  criteria={g.criteria}
+                  disabled={g.scoreEntryCount > 0 || round.status !== "pending"}
+                  lockReason={round.status !== "pending" ? "started" : "scores"}
+                  onChange={(patch) => patchGroup(idx, {
+                    scoreMode: patch.mode ?? g.scoreMode,
+                    maxScore: patch.maxScore ?? g.maxScore,
+                    criteria: patch.criteria ?? g.criteria,
+                  })}
+                />
+              )}
+              {g.enabled && g.kind === "vote" && g.id && round.status === "pending" && (
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-3">
+                  <Button type="button" variant="ghost" size="sm" className="hover:text-red-500"
+                    disabled={g.voteEntryCount === 0 || clearingGroupId === g.id}
+                    onClick={() => clearTestVotes(g, idx)}>
+                    {clearingGroupId === g.id ? "清空中…" : `清空测试票（${g.voteEntryCount}）`}
+                  </Button>
+                  <span className="text-xs text-ink-300">仅待开始可清空；不影响其他群体和评审绑定</span>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -436,7 +489,7 @@ function RoundEditor({ vote, round, reload, onStatus }: {
       </Card>
 
       <div className="flex items-center gap-3">
-        <Button onClick={save} disabled={saving || totalWeight !== 100 || mixedBatch}>{saving ? "保存中…" : "保存轮次配置"}</Button>
+        <Button onClick={save} disabled={saving || totalWeight !== 100 || mixedBatch || Boolean(criteriaError)}>{saving ? "保存中…" : "保存轮次配置"}</Button>
         {msg && <span className={`text-sm ${msg.includes("✓") ? "text-green-600" : "text-red-500"}`}>{msg}</span>}
       </div>
 

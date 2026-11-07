@@ -43,3 +43,7 @@ next-env.d.ts
 # 本地构建上传部署（scripts/package-build.sh 产物）
 /.next-build/
 /deploy-next-build.tar.gz
+/deploy-static-oss-helper.tar.gz
+
+# 压测与浏览器验证产物
+/output/

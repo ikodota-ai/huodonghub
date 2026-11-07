@@ -17,6 +17,8 @@ interface ScreenState {
   screenQrMode: boolean;
   screenShowResult: boolean;
   screenShowPart: boolean;
+  screenShowAxis: boolean;
+  screenShowContribution: boolean;
   screenPageSize: number;
   screenSortMode: "total" | "number" | "seq";
   countdownEndsAt: string | null;
@@ -120,12 +122,34 @@ export default function ScreenPage() {
   }, [roundId]);
 
   useEffect(() => {
-    fetchState();
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let inFlight = false;
+    let pending = false;
+    const refresh = async () => {
+      if (disposed) return;
+      if (inFlight) { pending = true; return; }
+      inFlight = true;
+      pending = false;
+      await fetchState();
+      inFlight = false;
+      if (pending && !disposed) timer = setTimeout(() => { timer = null; void refresh(); }, 100);
+    };
+    const scheduleRefresh = () => {
+      pending = true;
+      if (timer || inFlight) return;
+      timer = setTimeout(() => { timer = null; void refresh(); }, 100);
+    };
+    void refresh();
     const es = new EventSource(`/api/screen/${roundId}/stream`);
-    es.addEventListener("update", () => fetchState());
+    es.addEventListener("update", scheduleRefresh);
     es.onopen = () => setLive(true);
     es.onerror = () => setLive(false);
-    return () => es.close();
+    return () => {
+      disposed = true;
+      if (timer) clearTimeout(timer);
+      es.close();
+    };
   }, [fetchState]);
 
   useEffect(() => {
@@ -203,7 +227,7 @@ export default function ScreenPage() {
     <div className="relative isolate flex h-screen min-h-screen flex-col overflow-hidden bg-[#070B14] text-white" data-screen-theme={theme}>
       <Backdrop state={state} theme={theme} />
       {hintVisible && (
-        <div className="absolute left-1/2 top-3 z-30 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/10 bg-black/35 px-4 py-1.5 text-xs text-white/70 backdrop-blur-md">
+        <div className="absolute bottom-4 left-[clamp(24px,3vw,64px)] z-30 whitespace-nowrap rounded-full border border-white/10 bg-black/35 px-4 py-1.5 text-xs text-white/70 backdrop-blur-md">
           F 全屏 · Q/2 二维码 · ←→ 切换群体 · PgUp/PgDn 翻页 · R 显隐数值 · P 参与率
         </div>
       )}
@@ -324,8 +348,8 @@ function ChartMode({ state, view, live, countdown, theme }: { state: ScreenState
     if (!view.groupId) return { ...base, main: r.total, sub: "" };
     const d = r.groups.find((g) => g.groupId === view.groupId);
     if (!d) return { ...base, main: 0, sub: "" };
-    if (groupInfo?.kind === "vote") return { ...base, main: d.raw, sub: `分数：${d.contribution}` };
-    return { ...base, main: d.raw, sub: `折算：${d.contribution}` };
+    if (groupInfo?.kind === "vote") return { ...base, main: d.raw, sub: state.screenShowContribution ? `分数：${d.contribution}` : "" };
+    return { ...base, main: d.raw, sub: state.screenShowContribution ? `折算：${d.contribution}` : "" };
   });
   // 名次始终按当前显示指标降序计算（与展示顺序解耦，避免按编号展示时名次标错）
   const byScore = [...rows].sort((a, b) => b.main - a.main);
@@ -350,7 +374,7 @@ function ChartMode({ state, view, live, countdown, theme }: { state: ScreenState
             const end = Math.min(start + winSize - 1, ranked.length - 1);
             chartRef.current!.setOption({
               backgroundColor: "transparent",
-              grid: { left: 60, right: 40, top: 84, bottom: 110 },
+              grid: { left: state.screenShowAxis ? 60 : 30, right: 40, top: 84, bottom: 110 },
               dataZoom: needZoom ? [
                 { type: "inside", xAxisIndex: 0, startValue: start, endValue: end, zoomLock: true },
                 { type: "slider", xAxisIndex: 0, startValue: start, endValue: end, zoomLock: true, bottom: 12, height: 26, showDetail: false, borderColor: "rgba(255,255,255,0.2)", backgroundColor: "rgba(255,255,255,0.06)", fillerColor: "rgba(255,255,255,0.15)", handleStyle: { color: "#fff" }, moveHandleSize: 6 },
@@ -363,8 +387,10 @@ function ChartMode({ state, view, live, countdown, theme }: { state: ScreenState
               },
               yAxis: {
                 type: "value",
-                axisLabel: { color: "rgba(255,255,255,0.6)", fontSize: 18 },
-                splitLine: { lineStyle: { color: "rgba(255,255,255,0.08)" } },
+                axisLabel: { show: state.screenShowAxis, color: "rgba(255,255,255,0.6)", fontSize: 18 },
+                axisLine: { show: state.screenShowAxis, lineStyle: { color: "rgba(255,255,255,0.3)" } },
+                axisTick: { show: state.screenShowAxis },
+                splitLine: { show: state.screenShowAxis, lineStyle: { color: "rgba(255,255,255,0.08)" } },
               },
               series: [{
                 type: "bar",
@@ -391,7 +417,7 @@ function ChartMode({ state, view, live, countdown, theme }: { state: ScreenState
       });
     });
     return () => { disposed = true; };
-  }, [JSON.stringify(ranked), view.showResult, winSize]);
+  }, [JSON.stringify(ranked), view.showResult, state.screenShowAxis, winSize]);
 
   // 键盘翻页（PageUp/PageDown，兼容翻页笔；↑/↓ 同效；整屏翻页，末屏后再翻回首页）
   const needPaging = rows.length > winSize;
@@ -424,11 +450,17 @@ function ChartMode({ state, view, live, countdown, theme }: { state: ScreenState
   const themeConfig = SCREEN_THEMES[theme];
 
   return (
-    <div className="relative z-10 flex min-h-0 flex-1 flex-col px-[clamp(24px,3vw,64px)] pb-10 pt-[clamp(24px,3vh,42px)]">
-      <div className="flex items-start justify-between">
-        <div className="min-w-0">
-          <ThemeBadge theme={theme} />
-          <h1 className="mt-4 text-[clamp(24px,2vw,40px)] font-bold leading-tight tracking-wide">{state.voteName} · {state.roundName} · {groupInfo ? groupInfo.name : "总分"}</h1>
+    <div className="relative z-10 flex min-h-0 flex-1 flex-col px-[clamp(24px,3vw,64px)] pb-10 pt-[clamp(24px,3vh,42px)]" data-screen-axis={state.screenShowAxis ? "visible" : "hidden"} data-screen-contribution={state.screenShowContribution ? "visible" : "hidden"}>
+      <div className="relative shrink-0 text-center">
+        <div className="mx-auto w-[calc(100%_-_220px)]">
+          <h1 className="text-[clamp(26px,2.2vw,44px)] font-bold leading-tight tracking-wide" data-screen-title>{state.voteName}</h1>
+          <div className="mt-2 flex items-center justify-center gap-3 text-[clamp(20px,1.6vw,30px)] font-medium" data-screen-subtitle>
+            <span className="h-px w-10" style={{ backgroundColor: `${themeConfig.accent}70` }} />
+            <span>{state.roundName}</span>
+            <span className="text-white/35">·</span>
+            <span style={{ color: themeConfig.accent }}>{groupInfo ? groupInfo.name : "总分揭晓"}</span>
+            <span className="h-px w-10" style={{ backgroundColor: `${themeConfig.accent}70` }} />
+          </div>
           <p className="mt-2 text-lg text-white/55">
             {groupInfo ? `群体类型：${groupInfo.kind === "score" ? "评分群体" : "投票群体"} · 权重：${groupInfo.weight}%${view.showPart && partText ? ` · ${partText}` : ""}` : "全部群体加权总分"}
             {state.batches.length > 1 && state.currentBatch > 0 && (
@@ -436,7 +468,7 @@ function ChartMode({ state, view, live, countdown, theme }: { state: ScreenState
             )}
           </p>
         </div>
-        <div className="ml-6 shrink-0 text-right">
+        <div className="absolute right-0 top-0 text-right">
           <div className={`flex items-center gap-2 justify-end text-lg ${live ? "text-green-400" : "text-red-400"}`}>
             <span className={`w-2.5 h-2.5 rounded-full ${live ? "bg-green-400" : "bg-red-400"}`} /> {live ? "实时" : "重连中"}
           </div>

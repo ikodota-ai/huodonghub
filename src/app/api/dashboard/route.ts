@@ -87,6 +87,7 @@ export async function GET() {
     const health = await buildHealth(user);
     return ok({
       groupCount, videoCount, activeVoteCount, activeRoundCount,
+      showStorageUsage: user.role === "admin",
       videoBytes: (sizeAgg._sum.fileSize ?? BigInt(0)).toString(),
       mediaBytes: canSeeAll(user) ? dirSizeBytes(MEDIA_ROOT) : (sizeAgg._sum.fileSize ?? BigInt(0)).toString(),
       health,

@@ -343,7 +343,111 @@ cd /www/wwwroot/huodongpeitai && bash scripts/deploy.sh
 2. **宝塔面板 → 文件** → 进入 `/www/wwwroot/huodongpeitai` → 上传该文件。
 3. **宝塔终端**：`cd /www/wwwroot/huodongpeitai && git pull && bash scripts/install-build.sh`（解压 → 迁移 → 切换 .next → PM2 重启，几十秒完成）。
 
-注意：项目无任何 `NEXT_PUBLIC_` 环境变量，`.next` 不含平台相关二进制，本地构建产物可直接在 Linux 服务器运行；环境变量仍以服务器 `.env` 为准（运行期读取）。
+注意：`.next` 不含平台相关二进制，本地构建产物可直接在 Linux 服务器运行。若启用下一节的 `NEXT_ASSET_PREFIX`，它是**构建期配置**，本地构建命令与服务器 `.env` 必须一致；其余环境变量仍以服务器 `.env` 为准。
+
+## 十二、已有媒体安全迁移到 OSS
+
+后台 OSS“测试连接”通过只代表新上传可用；已有本地文件需要单独迁移。迁移脚本直接读取后台 `storage.config`，不会打印 Secret，只处理 `media/images`、`media/covers`、`media/videos`，不会处理 `tmp/backups`。
+
+### 1. 在线扫描、上传、校验
+
+先备份并确认当前没有正式活动正在上传或投票：
+
+```bash
+cd /www/wwwroot/huodongpeitai
+bash scripts/backup.sh
+node scripts/migrate-media-to-oss.js scan
+```
+
+确认扫描目录、文件数和容量符合预期后执行：
+
+```bash
+node scripts/migrate-media-to-oss.js upload
+node scripts/migrate-media-to-oss.js verify
+```
+
+`upload` 可重复执行，已一致的文件会跳过；同名但大小/MD5 不同的对象会报告冲突，绝不覆盖。只有 `verify` 显示 `"failed": 0` 且退出码为 0，才能继续。报告位于 `output/oss-migration/report.json`，不包含密钥。
+
+### 2. 短暂停止服务并激活 OSS 回源
+
+以下操作会短暂停止 Node，禁止在正式活动进行中执行。把三个本地目录移到项目外备份，不要删除：
+
+```bash
+cd /www/wwwroot/huodongpeitai
+STAMP=$(date +%Y%m%d_%H%M%S)
+BACKUP_ROOT="/www/wwwroot/huodongpeitai-media-local-$STAMP"
+mkdir -p "$BACKUP_ROOT"
+pm2 stop huodongpeitai
+
+for dir in images covers videos; do
+  mv "media/$dir" "$BACKUP_ROOT/"
+  mkdir -p "media/$dir"
+done
+
+pm2 restart huodongpeitai
+pm2 describe huodongpeitai
+echo "本地媒体备份：$BACKUP_ROOT"
+```
+
+记录最后输出的备份路径。原 `/api/media/...` 不变：本地文件缺失后由 Nginx 回退 Node，再 302 到 OSS。抽查旧图片、封面和视频，视频还需测试拖动进度。
+
+### 3. 异常回滚
+
+先停止 PM2。若新建目录仍为空，可用 `rmdir` 移除后把原目录移回；若不为空，不要强行删除，先保留现场排查：
+
+```bash
+cd /www/wwwroot/huodongpeitai
+pm2 stop huodongpeitai
+BACKUP_ROOT="/www/wwwroot/替换为激活时输出的备份路径"
+
+for dir in images covers videos; do
+  rmdir "media/$dir"
+  mv "$BACKUP_ROOT/$dir" media/
+done
+
+pm2 restart huodongpeitai
+```
+
+OSS 已上传对象在回滚后保留即可。验证稳定前不要删除本地备份，也不要把数据库备份上传到公开媒体前缀。
+
+## 十三、Next.js JS/CSS 静态资源卸载到 OSS
+
+当前生产使用 OSS 自定义域名 `oss-zonghe.lanaoboxiang.com`，对象仍隔离在 `huodonghub/` 项目前缀。不要使用 OSS 默认域名托管 JS：默认域名可能返回 `Content-Disposition: attachment`，导致浏览器下载而非执行。
+
+### 1. 服务器设置构建期前缀
+
+在项目 `.env` 增加或修改（不要包含 `_next/static`，末尾 `/` 可有可无）：
+
+```bash
+NEXT_ASSET_PREFIX="https://oss-zonghe.lanaoboxiang.com/huodonghub"
+```
+
+构建后的资源地址为 `https://oss-zonghe.lanaoboxiang.com/huodonghub/_next/static/...`，对应 OSS 对象 `huodonghub/_next/static/...`。同步脚本会拒绝公网路径与当前媒体前缀不一致的配置，避免误传其他项目。
+
+### 2. 本地构建，服务器先上传再切换
+
+本地若未在 `.env` 配置该变量，可显式执行：
+
+```bash
+NEXT_ASSET_PREFIX="https://oss-zonghe.lanaoboxiang.com/huodonghub" bash scripts/package-build.sh
+```
+
+上传 `deploy-next-build.tar.gz` 后，服务器按第十一节执行 `bash scripts/install-build.sh`。脚本顺序为：解压 → 数据库迁移 → `node scripts/sync-static-to-oss.js upload .next-build` → 切换 `.next` → PM2 重启。
+
+- 同步脚本复用后台 OSS 配置，不打印 Secret；只处理 `.next/static` 普通文件，最多 4 并发。
+- 已一致文件跳过，同名不同内容拒绝覆盖；上传后校验 MD5/大小，并公网 GET 至少一个 JS 和一个 CSS（存在时）。
+- JS/CSS 必须返回 200、正确 MIME 且没有 attachment。任一失败都会中止，**旧 `.next` 与 PM2 保持运行**，不会在访客面前切换到缺静态资源的新版本。
+- 静态对象带 `Cache-Control: public, max-age=31536000, immutable`。HTML、RSC、API、SSE 仍走本站 Nginx + Node。
+- 报告位于 `output/static-oss/report.json`。脚本不会删除旧对象，便于旧页面和回滚；将来清理需单独按 BUILD_ID 确认，不要直接清空整个前缀。
+
+服务器直接构建的 `bash scripts/deploy.sh` 也执行同一同步保护。手动复核当前线上构建：
+
+```bash
+cd /www/wwwroot/huodongpeitai
+node scripts/sync-static-to-oss.js verify .next
+```
+
+首次启用后，打开后台和投票页，在浏览器开发者工具 Network 确认 `_next/static` 均来自 `oss-zonghe.lanaoboxiang.com`，且没有 400/403/404、ChunkLoadError 或 attachment 下载，再开始压测。未设置 `NEXT_ASSET_PREFIX` 的构建仍保持原来的源站直发行为。
 
 ## 宝塔特有坑位速查
 

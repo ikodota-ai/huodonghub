@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 
+export const revalidate = 1;
+
+export function generateStaticParams() {
+  return [];
+}
+
 // 分享卡片：微信/QQ 等取 title 与 og 标签（完整自定义需 JS-SDK，见 doc backlog）
 export async function generateMetadata({ params }: { params: { code: string } }): Promise<Metadata> {
   const round = await db.voteRound.findUnique({ where: { code: params.code }, include: { vote: true } });

@@ -7,6 +7,7 @@ import { VoteDetail, ContestantItem } from "./types";
 import { ImagePicker } from "@/components/Uploader";
 import { useDialogs } from "@/components/ui/dialogs";
 import type { ContestantDetail } from "./ResultsTab";
+import { ScoreGroupBreakdown } from "./ScoreGroupBreakdown";
 
 export function ContestantsTab({ vote, reload }: { vote: VoteDetail; reload: () => void }) {
   const { confirm, toast, dialogNode } = useDialogs();
@@ -190,14 +191,7 @@ function TranscriptModal({ voteId, contestant, onClose }: { voteId: string; cont
                         {r.batch > 0 && <span className="ml-auto text-xs text-ink-300">第{r.batch}批</span>}
                       </div>
                       {g.kind === "score" && g.judges.length > 0 && judgeOpen.has(`${r.roundId}|${g.name}`) && (
-                        <div className="mt-1.5 ml-32 bg-white rounded-lg border border-ink-100 divide-y divide-ink-50 max-w-xs">
-                          {g.judges.map((j, ji) => (
-                            <div key={ji} className="flex items-center justify-between gap-3 px-2.5 py-1.5 text-xs">
-                              <span className="text-ink-700">{j.name}</span>
-                              <span className="num whitespace-nowrap">{j.score} 分 <span className="text-ink-300">折算 {j.share}</span></span>
-                            </div>
-                          ))}
-                        </div>
+                        <ScoreGroupBreakdown group={g} className="mt-1.5 ml-32" />
                       )}
                     </div>
                   ))}

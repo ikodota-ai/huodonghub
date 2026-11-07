@@ -110,6 +110,8 @@ model VoteRound {
   audienceEndAt      DateTime? @map("audience_end_at")
   screenShowResult   Int      @default(1) @map("screen_show_result") @db.TinyInt
   screenShowPart     Int      @default(1) @map("screen_show_part") @db.TinyInt // 大屏显示参与率
+  screenShowAxis     Int      @default(1) @map("screen_show_axis") @db.TinyInt // 大屏显示 Y 轴刻度
+  screenShowContribution Int @default(1) @map("screen_show_contribution") @db.TinyInt // 大屏显示折算/分数副数值
   screenPageSize     Int      @default(0) @map("screen_page_size") // 大屏每屏选手数，0=按屏宽自动
   screenSortMode     String   @default("total") @map("screen_sort_mode") @db.VarChar(16) // 大屏排序：total=按得分 number=按编号 seq=按出场顺序
   audienceShowResult Int      @default(0) @map("audience_show_result") @db.TinyInt
@@ -171,10 +173,12 @@ model VoteGroup {
   pctMode     String   @default("batch") @map("pct_mode") @db.VarChar(16) // 投票得票率口径：batch=按选手所在批次 round=按整轮
   voteMode    String   @default("participants") @map("vote_mode") @db.VarChar(16) // 投票计分方式：participants=票/参与人数 top=相对最高票 share=票仓占比（范围随 pctMode）
   votePeriod  String   @default("total") @map("vote_period") @db.VarChar(8) // 开放投票限票周期：total=整个活动共N票 daily=每天N票（按东八区日历日重置）
+  scoreMode   String   @default("single") @map("score_mode") @db.VarChar(16) // 评分模式：single=整体 sum=分值分配 weighted=百分制加权
   voters      Voter[]
   scoreEntries ScoreEntry[]
   voteEntries VoteEntry[]
   groupStats  GroupStat[]
+  scoreCriteria ScoreCriterion[]
 
   @@index([roundId])
   @@map("vote_groups")
@@ -206,9 +210,39 @@ model ScoreEntry {
   createdAt    DateTime @default(now()) @map("created_at")
   group        VoteGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
   voter        Voter     @relation(fields: [voterId], references: [id], onDelete: Cascade)
+  scoreItems   ScoreItemEntry[]
 
   @@unique([groupId, voterId, contestantId])
   @@map("score_entries")
+}
+
+model ScoreCriterion {
+  id           BigInt   @id @default(autoincrement())
+  groupId      BigInt   @map("group_id")
+  name         String   @db.VarChar(64)
+  maxScore     Decimal  @map("max_score") @db.Decimal(5, 2)
+  weight       Decimal? @db.Decimal(5, 2)
+  sort         Int      @default(0)
+  group        VoteGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  scoreItems   ScoreItemEntry[]
+
+  @@unique([groupId, name])
+  @@index([groupId, sort])
+  @@map("score_criteria")
+}
+
+model ScoreItemEntry {
+  id           BigInt   @id @default(autoincrement())
+  scoreEntryId BigInt   @map("score_entry_id")
+  criterionId  BigInt   @map("criterion_id")
+  score        Decimal  @db.Decimal(5, 2)
+  createdAt    DateTime @default(now()) @map("created_at")
+  scoreEntry   ScoreEntry @relation(fields: [scoreEntryId], references: [id], onDelete: Cascade)
+  criterion    ScoreCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+
+  @@unique([scoreEntryId, criterionId])
+  @@index([criterionId])
+  @@map("score_item_entries")
 }
 
 model VoteEntry {
@@ -221,6 +255,7 @@ model VoteEntry {
   group        VoteGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@index([groupId, voterKey])
+  @@index([groupId, ip, createdAt])
   @@map("vote_entries")
 }
 

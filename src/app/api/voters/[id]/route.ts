@@ -4,6 +4,7 @@ import { ok, fail, handleError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { rebuildGroupStats } from "@/lib/scoring";
 import { canAccess, voteOwnerByVoter } from "@/lib/ownership";
+import { isRoundDraft } from "@/lib/round-lifecycle";
 
 type Ctx = { params: { id: string } };
 
@@ -29,8 +30,15 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   try {
     const user = await requireUser();
     if (!canAccess(user, await voteOwnerByVoter(BigInt(params.id)))) return fail("评审不存在", 404);
-    const voter = await db.voter.findUnique({ where: { id: BigInt(params.id) } });
+    const voter = await db.voter.findUnique({
+      where: { id: BigInt(params.id) },
+      include: { group: { select: { round: { select: { status: true } } } }, _count: { select: { scoreEntries: true } } },
+    });
     if (!voter) return fail("评审不存在", 404);
+    const voteCount = await db.voteEntry.count({ where: { groupId: voter.groupId, voterKey: `voter_${voter.id}` } });
+    if (!isRoundDraft(voter.group.round.status) && (voter._count.scoreEntries > 0 || voteCount > 0)) {
+      return fail("轮次已开始，不能删除已有评分或投票的评审", 409);
+    }
     // 连带清理其投票流水，再重建群体计数器
     await db.$transaction([
       db.voteEntry.deleteMany({ where: { groupId: voter.groupId, voterKey: `voter_${voter.id}` } }),

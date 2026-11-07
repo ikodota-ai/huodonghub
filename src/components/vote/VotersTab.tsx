@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { copyText } from "@/lib/clipboard";
-import { api } from "@/lib/client";
+import { api, fmtTime } from "@/lib/client";
 import { Button, Card, Badge, Modal, Field, Empty, QrImage, Toggle } from "@/components/ui";
 import { VoteDetail } from "./types";
 import { useDialogs } from "@/components/ui/dialogs";
+import type { ScoreItemDetail } from "@/lib/score-item-details";
 
 interface Voter {
   id: string; name: string; token: string; needBind: number;
@@ -15,7 +16,7 @@ interface Voter {
 export function VotersTab({ vote }: { vote: VoteDetail }) {
   const { confirm, dialogNode } = useDialogs();
   const restrictedGroups = vote.rounds.flatMap((r) =>
-    r.groups.filter((g) => g.restricted === 1).map((g) => ({ roundId: r.id, roundName: r.name, groupId: g.id, groupName: g.name }))
+    r.groups.filter((g) => g.restricted === 1).map((g) => ({ roundId: r.id, roundName: r.name, roundStatus: r.status, groupId: g.id, groupName: g.name }))
   );
   const [sel, setSel] = useState(0);
   const [voters, setVoters] = useState<Voter[] | null>(null);
@@ -41,8 +42,12 @@ export function VotersTab({ vote }: { vote: VoteDetail }) {
   }
 
   async function resetVoter(v: Voter) {
-    if (!(await confirm(`重置「${v.name}」的绑定与提交状态？`, { confirmText: "重置", danger: true }))) return;
-    await api(`/api/voters/${v.id}/reset`, { method: "POST" });
+    const bindingOnly = group.roundStatus !== "pending";
+    const message = bindingOnly
+      ? `解除「${v.name}」的设备绑定？\n仅用于更换设备，保留其成绩、投票和提交状态。`
+      : `重置「${v.name}」的绑定与提交状态？\n其评分和投票也会被清除，且不可恢复。`;
+    if (!(await confirm(message, { title: bindingOnly ? "解除绑定" : "重置评审", confirmText: bindingOnly ? "确认解绑" : "确认重置", danger: true }))) return;
+    await api(`/api/voters/${v.id}/reset`, { method: "POST", body: JSON.stringify({ mode: bindingOnly ? "binding" : "full" }) });
     load();
   }
 
@@ -105,8 +110,10 @@ export function VotersTab({ vote }: { vote: VoteDetail }) {
                   <td className="px-3 py-3 text-right">
                     <Button variant="ghost" size="sm" onClick={() => setRecordsFor(v)}>记录</Button>
                     <Button variant="ghost" size="sm" onClick={() => copyText(`${location.origin}/judge/${v.token}`)}>复制链接</Button>
-                    <Button variant="ghost" size="sm" onClick={() => resetVoter(v)}>重置</Button>
-                    <Button variant="ghost" size="sm" className="hover:text-red-500" onClick={() => del(v)}>删除</Button>
+                    <Button variant="ghost" size="sm" onClick={() => resetVoter(v)}>{group.roundStatus === "pending" ? "重置" : "解除绑定"}</Button>
+                    <Button variant="ghost" size="sm" className="hover:text-red-500" disabled={group.roundStatus !== "pending" && v.hasVoted === 1}
+                      title={group.roundStatus !== "pending" && v.hasVoted === 1 ? "轮次已开始，不能删除已有评分或投票的评审" : undefined}
+                      onClick={() => del(v)}>删除</Button>
                   </td>
                 </tr>
               ))}
@@ -170,7 +177,7 @@ function VoterQr({ name, token }: { name: string; token: string }) {
 interface VoterRecords {
   voter: { id: string; name: string; hasVoted: number };
   group: { id: string; name: string; kind: string; weight: number; roundName: string };
-  entries: { contestantId: string; number: string; name: string; batch: number; score?: number | null; share?: number | null; picked?: boolean }[];
+  entries: { contestantId: string; number: string; name: string; batch: number; score?: number | null; share?: number | null; picked?: boolean; createdAt?: string | null; items?: ScoreItemDetail[] }[];
 }
 
 function VoterRecordsModal({ voter, onClose }: { voter: Voter; onClose: () => void }) {
@@ -181,7 +188,7 @@ function VoterRecordsModal({ voter, onClose }: { voter: Voter; onClose: () => vo
   }, [voter.id]);
   const isScore = data?.group.kind === "score";
   return (
-    <Modal open onClose={onClose} title={`${voter.name} 的${isScore ? "评分" : "投票"}记录`} width="max-w-xl">
+    <Modal open onClose={onClose} title={`${voter.name} 的${isScore ? "评分" : "投票"}记录`} width="max-w-2xl">
       {error && <p className="text-sm text-red-500">{error}</p>}
       {!data && !error && <p className="text-sm text-ink-300 py-6 text-center">加载中…</p>}
       {data && (
@@ -213,6 +220,17 @@ function VoterRecordsModal({ voter, onClose }: { voter: Voter; onClose: () => vo
                     <td className="py-2.5 pr-3">
                       {e.name}
                       {e.batch > 0 && <span className="ml-1 text-xs text-ink-300">第{e.batch}批</span>}
+                      {e.items && e.items.length > 0 && (
+                        <div className="mt-2 space-y-1 rounded-lg bg-ink-50 p-2 text-xs">
+                          {e.items.map((item) => (
+                            <div key={item.criterionId} className="flex items-center justify-between gap-3">
+                              <span className="text-ink-500">{item.name}<span className="ml-1 text-ink-300">{item.weight != null ? `${item.weight}%` : ""}</span></span>
+                              <span className="num whitespace-nowrap">{item.score ?? "—"}<span className="mx-1 text-ink-300">→</span>{item.contribution ?? "—"}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {e.createdAt && <p className="mt-1 text-xs text-ink-300">提交于 {fmtTime(e.createdAt)}</p>}
                     </td>
                     {isScore ? (
                       <>

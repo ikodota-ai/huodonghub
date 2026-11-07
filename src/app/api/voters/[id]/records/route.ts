@@ -2,6 +2,8 @@ import { requireUser } from "@/lib/auth";
 import { ok, fail, handleError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { canAccess, voteOwnerByVoter } from "@/lib/ownership";
+import { buildScoreItemDetails } from "@/lib/score-item-details";
+import type { ScoreMode } from "@/lib/score-criteria";
 
 // 评委评分记录：该评委对本轮各位选手的给分明细（评分制，含逐分折算）或勾选记录（投票制限定群体）。
 // 逐分折算 = 打分 ÷ 参评人数 × 权重%（参评人数口径随 avgMode，与 computeRoundResults 一致）。
@@ -15,6 +17,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       include: {
         group: {
           include: {
+            scoreCriteria: { orderBy: { sort: "asc" } },
             round: {
               include: {
                 roundContestants: {
@@ -33,7 +36,14 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     const weight = Number(g.weight);
     const base = {
       voter: { id: voter.id.toString(), name: voter.name, hasVoted: voter.hasVoted },
-      group: { id: g.id.toString(), name: g.name, kind: g.kind, weight, roundName: round.name },
+      group: {
+        id: g.id.toString(), name: g.name, kind: g.kind, weight, roundName: round.name,
+        scoreMode: g.scoreMode,
+        criteria: g.scoreCriteria.map((criterion) => ({
+          id: criterion.id.toString(), name: criterion.name, maxScore: Number(criterion.maxScore),
+          weight: criterion.weight == null ? null : Number(criterion.weight), sort: criterion.sort,
+        })),
+      },
     };
 
     if (g.kind === "score") {
@@ -42,18 +52,25 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       const scorerRows: { contestant_id: bigint; c: bigint }[] = await db.$queryRaw`
         SELECT contestant_id, COUNT(DISTINCT voter_id) AS c FROM score_entries WHERE group_id = ${g.id} GROUP BY contestant_id`;
       const scorerOf = new Map(scorerRows.map((r) => [r.contestant_id.toString(), Number(r.c)]));
-      const entries = await db.scoreEntry.findMany({ where: { groupId: g.id, voterId } });
-      const scoreOf = new Map(entries.map((e) => [e.contestantId.toString(), Number(e.score)]));
+      const entries = await db.scoreEntry.findMany({ where: { groupId: g.id, voterId }, include: { scoreItems: true } });
+      const entryOf = new Map(entries.map((entry) => [entry.contestantId.toString(), entry]));
+      const criteria = g.scoreCriteria.map((criterion) => ({
+        id: criterion.id.toString(), name: criterion.name, maxScore: Number(criterion.maxScore),
+        weight: criterion.weight == null ? null : Number(criterion.weight), sort: criterion.sort,
+      }));
       return ok({
         ...base,
         entries: round.roundContestants.map((rc) => {
           const cid = rc.contestantId.toString();
-          const score = scoreOf.get(cid) ?? null;
+          const entry = entryOf.get(cid);
+          const score = entry ? Number(entry.score) : null;
           const participants = g.avgMode === "roster" ? rosterCount : (scorerOf.get(cid) ?? 0);
           return {
             contestantId: cid, number: rc.contestant.number, name: rc.contestant.name, batch: rc.batch,
             score,
             share: score != null && participants > 0 ? Math.round(((score / participants) * (weight / 100)) * 100) / 100 : null,
+            createdAt: entry?.createdAt ?? null,
+            items: entry ? buildScoreItemDetails(g.scoreMode as ScoreMode, criteria, entry.scoreItems.map((item) => ({ criterionId: item.criterionId.toString(), score: Number(item.score) }))) : [],
           };
         }),
       });

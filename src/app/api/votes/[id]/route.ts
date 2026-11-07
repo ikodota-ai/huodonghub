@@ -16,7 +16,7 @@ export async function GET(_req: Request, { params }: Ctx) {
         rounds: {
           orderBy: { seq: "asc" },
           include: {
-            groups: { orderBy: { sort: "asc" }, include: { _count: { select: { voters: true } } } },
+            groups: { orderBy: { sort: "asc" }, include: { scoreCriteria: { orderBy: { sort: "asc" } }, _count: { select: { voters: true, scoreEntries: true, voteEntries: true } } } },
             roundContestants: { select: { contestantId: true, batch: true, seq: true } },
           },
         },
@@ -35,7 +35,7 @@ export async function GET(_req: Request, { params }: Ctx) {
       rounds: vote.rounds.map((r) => ({
         id: r.id.toString(), name: r.name, seq: r.seq, status: r.status, code: r.code,
         audienceStartAt: r.audienceStartAt, audienceEndAt: r.audienceEndAt,
-        screenShowResult: r.screenShowResult, screenShowPart: r.screenShowPart, audienceShowResult: r.audienceShowResult,
+        screenShowResult: r.screenShowResult, screenShowPart: r.screenShowPart, screenShowAxis: r.screenShowAxis, screenShowContribution: r.screenShowContribution, audienceShowResult: r.audienceShowResult,
         screenGroupId: r.screenGroupId?.toString() ?? null, screenQrMode: r.screenQrMode,
         screenPageSize: r.screenPageSize,
         screenSortMode: r.screenSortMode,
@@ -48,6 +48,10 @@ export async function GET(_req: Request, { params }: Ctx) {
           fixedPoints: g.fixedPoints == null ? null : Number(g.fixedPoints),
           restricted: g.restricted, sort: g.sort, avgMode: g.avgMode, pctMode: g.pctMode, votePeriod: g.votePeriod,
           voteMode: g.voteMode,
+          scoreMode: g.scoreMode,
+          criteria: g.scoreCriteria.map((criterion) => ({ id: criterion.id.toString(), name: criterion.name, maxScore: Number(criterion.maxScore), weight: criterion.weight == null ? null : Number(criterion.weight), sort: criterion.sort })),
+          scoreEntryCount: g._count.scoreEntries,
+          voteEntryCount: g._count.voteEntries,
           voterCount: g._count.voters,
         })),
       })),

@@ -6,6 +6,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# NEXT_ASSET_PREFIX 是构建期配置；使用 Next 自己的 env 解析，避免 source .env 展开密钥特殊字符。
+export NEXT_ASSET_PREFIX="$(node -e 'require("@next/env").loadEnvConfig(process.cwd()); process.stdout.write(process.env.NEXT_ASSET_PREFIX || "")')"
+
 cp tsconfig.json /tmp/dth-tsconfig.bak
 trap 'mv /tmp/dth-tsconfig.bak tsconfig.json 2>/dev/null || true' EXIT  # 还原 next build 对 tsconfig 的自动改写
 
