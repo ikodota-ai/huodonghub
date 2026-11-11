@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { canAccess, voteOwnerByGroup } from "@/lib/ownership";
 import { ScoreMode, validateCriteria } from "@/lib/score-criteria";
 import { isRoundDraft } from "@/lib/round-lifecycle";
+import { canClearVoteData, voteDataLockedMessage } from "@/lib/vote-lifecycle";
 
 type Ctx = { params: { id: string } };
 
@@ -91,11 +92,11 @@ export async function DELETE(_req: Request, { params }: Ctx) {
     if (!canAccess(user, await voteOwnerByGroup(BigInt(params.id)))) return fail("群体不存在", 404);
     const group = await db.voteGroup.findUnique({
       where: { id: BigInt(params.id) },
-      select: { id: true, round: { select: { status: true } }, _count: { select: { scoreEntries: true, voteEntries: true } } },
+      select: { id: true, round: { select: { vote: { select: { status: true } } } }, _count: { select: { scoreEntries: true, voteEntries: true } } },
     });
     if (!group) return fail("群体不存在", 404);
-    if (!isRoundDraft(group.round.status) && (group._count.scoreEntries > 0 || group._count.voteEntries > 0)) {
-      return fail("轮次已开始，不能删除已有评分或投票的群体", 409);
+    if (!canClearVoteData(group.round.vote.status) && (group._count.scoreEntries > 0 || group._count.voteEntries > 0)) {
+      return fail(voteDataLockedMessage(group.round.vote.status), 409);
     }
     await db.voteGroup.delete({ where: { id: group.id } });
     return ok(true);

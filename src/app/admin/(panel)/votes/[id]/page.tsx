@@ -37,7 +37,7 @@ export default function VoteDetailPage() {
           <h1 className="text-xl font-bold flex items-center gap-3">
             {vote.name}
             <Badge tone={{ draft: "gray", active: "green", finished: "orange", archived: "gray" }[vote.status] as "gray" | "green" | "orange"}>
-              {{ draft: "草稿", active: "进行中", finished: "已结束", archived: "已归档" }[vote.status]}
+              {{ draft: "彩排", active: "正式", finished: "已结束", archived: "已归档" }[vote.status]}
             </Badge>
             {vote.wxEffective
               ? <Badge tone="blue">openid 模式 · {vote.wxEffective.source === "global" ? "全局默认" : "自定义"}</Badge>
@@ -72,21 +72,43 @@ export default function VoteDetailPage() {
 }
 
 function VoteEditModal({ vote, open, onClose, reload }: { vote: VoteDetail; open: boolean; onClose: () => void; reload: () => void }) {
-  const { confirm, dialogNode } = useDialogs();
+  const { confirm, toast, dialogNode } = useDialogs();
   const [name, setName] = useState(vote.name);
   const [description, setDescription] = useState(vote.description || "");
   const [cover, setCover] = useState(vote.cover || "");
   const [wxAppid, setWxAppid] = useState(vote.wxAppid);
   const [wxSecret, setWxSecret] = useState(vote.wxSecret);
-  const [status, setStatus] = useState(vote.status);
+  const [transitioning, setTransitioning] = useState(false);
   const [screenBgEnabled, setScreenBgEnabled] = useState(vote.screenBgEnabled);
   const [screenBgImage, setScreenBgImage] = useState(vote.screenBgImage || "");
   const [screenBgDim, setScreenBgDim] = useState(vote.screenBgDim);
   useEffect(() => {
     setName(vote.name); setDescription(vote.description || ""); setCover(vote.cover || "");
-    setWxAppid(vote.wxAppid); setWxSecret(vote.wxSecret); setStatus(vote.status);
+    setWxAppid(vote.wxAppid); setWxSecret(vote.wxSecret);
     setScreenBgEnabled(vote.screenBgEnabled); setScreenBgImage(vote.screenBgImage || ""); setScreenBgDim(vote.screenBgDim);
   }, [vote]);
+
+  const next = {
+    draft: { status: "active", action: "转为正式", confirmText: "确认转正式", message: "转为正式后不可退回彩排，也不能再清空数据。确认继续？", success: "已转为正式" },
+    active: { status: "finished", action: "结束活动", confirmText: "确认结束", message: "结束活动后，观众和评委将不能继续提交。确认结束？", success: "活动已结束" },
+    finished: { status: "archived", action: "归档活动", confirmText: "确认归档", message: "归档后仍可查看历史结果，但不能继续提交。确认归档？", success: "活动已归档" },
+  }[vote.status];
+
+  async function transition() {
+    if (!next) return;
+    if (!(await confirm(next.message, { title: next.action, confirmText: next.confirmText, danger: next.status !== "archived" }))) return;
+    setTransitioning(true);
+    try {
+      await api(`/api/votes/${vote.id}`, { method: "PUT", body: JSON.stringify({ status: next.status }) });
+      onClose();
+      reload();
+      toast(next.success);
+    } catch (error) {
+      toast((error as Error).message);
+    } finally {
+      setTransitioning(false);
+    }
+  }
 
   return (
     <Modal open={open} onClose={onClose} title="投票设置">
@@ -112,14 +134,16 @@ function VoteEditModal({ vote, open, onClose, reload }: { vote: VoteDetail; open
           <span className="num w-10 text-right">{screenBgDim}%</span>
         </label>
       </div>
-      <Field label="状态">
-        <select className="w-full h-9 px-3 rounded-lg border border-ink-200 text-sm bg-white" value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="draft">草稿</option>
-          <option value="active">进行中</option>
-          <option value="finished">已结束</option>
-          <option value="archived">已归档</option>
-        </select>
-      </Field>
+      <div className="mb-4">
+        <p className="block text-sm font-medium text-ink-700 mb-1.5">活动状态</p>
+        <div className="flex items-center gap-3">
+          <Badge tone={vote.status === "active" ? "green" : vote.status === "finished" ? "orange" : "gray"}>
+            {{ draft: "彩排", active: "正式", finished: "已结束", archived: "已归档" }[vote.status]}
+          </Badge>
+          {next && <Button size="sm" variant={vote.status === "active" ? "danger" : "secondary"} disabled={transitioning} onClick={transition}>{next.action}</Button>}
+        </div>
+        <p className="text-xs text-ink-300 mt-1">状态仅可按彩排、正式、已结束、已归档顺序转换，不可退回。</p>
+      </div>
       <div className="bg-ink-50 rounded-lg p-4 mb-4">
         <p className="text-sm font-medium mb-2">微信服务号配置</p>
         <p className="text-xs text-ink-300 mb-3">
@@ -142,7 +166,7 @@ function VoteEditModal({ vote, open, onClose, reload }: { vote: VoteDetail; open
           <Button onClick={async () => {
             await api(`/api/votes/${vote.id}`, {
               method: "PUT",
-              body: JSON.stringify({ name, description, cover: cover || null, screenBgEnabled, screenBgImage: screenBgImage || null, screenBgDim, wxAppid: wxAppid || null, wxSecret: wxSecret || null, status }),
+              body: JSON.stringify({ name, description, cover: cover || null, screenBgEnabled, screenBgImage: screenBgImage || null, screenBgDim, wxAppid: wxAppid || null, wxSecret: wxSecret || null }),
             });
             onClose();
             reload();

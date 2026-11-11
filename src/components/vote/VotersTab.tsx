@@ -42,7 +42,7 @@ export function VotersTab({ vote }: { vote: VoteDetail }) {
   }
 
   async function resetVoter(v: Voter) {
-    const bindingOnly = group.roundStatus !== "pending";
+    const bindingOnly = vote.status !== "draft";
     const message = bindingOnly
       ? `解除「${v.name}」的设备绑定？\n仅用于更换设备，保留其成绩、投票和提交状态。`
       : `重置「${v.name}」的绑定与提交状态？\n其评分和投票也会被清除，且不可恢复。`;
@@ -110,9 +110,9 @@ export function VotersTab({ vote }: { vote: VoteDetail }) {
                   <td className="px-3 py-3 text-right">
                     <Button variant="ghost" size="sm" onClick={() => setRecordsFor(v)}>记录</Button>
                     <Button variant="ghost" size="sm" onClick={() => copyText(`${location.origin}/judge/${v.token}`)}>复制链接</Button>
-                    <Button variant="ghost" size="sm" onClick={() => resetVoter(v)}>{group.roundStatus === "pending" ? "重置" : "解除绑定"}</Button>
-                    <Button variant="ghost" size="sm" className="hover:text-red-500" disabled={group.roundStatus !== "pending" && v.hasVoted === 1}
-                      title={group.roundStatus !== "pending" && v.hasVoted === 1 ? "轮次已开始，不能删除已有评分或投票的评审" : undefined}
+                    <Button variant="ghost" size="sm" onClick={() => resetVoter(v)}>{vote.status === "draft" ? "重置" : "解除绑定"}</Button>
+                    <Button variant="ghost" size="sm" className="hover:text-red-500" disabled={vote.status !== "draft" && v.hasVoted === 1}
+                      title={vote.status !== "draft" && v.hasVoted === 1 ? "非彩排活动不能删除已有评分或投票的评审" : undefined}
                       onClick={() => del(v)}>删除</Button>
                   </td>
                 </tr>

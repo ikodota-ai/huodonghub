@@ -231,7 +231,7 @@ function RoundEditor({ vote, round, reload, onStatus }: {
         }),
       });
       const hasBatch = Array.from(contestantIds).some((id) => (batchSeq.get(id)?.batch ?? 0) > 0);
-      setMsg(hasBatch ? "已保存 ✓（分批模式：开始投票自动定位第 1 批，也可在「控制台」随时切换）" : "已保存 ✓");
+      setMsg(hasBatch ? "已保存 ✓（分批模式：开始本轮自动定位第 1 批，也可在「控制台」随时切换）" : "已保存 ✓");
       await reload();
     } catch (e) {
       setMsg((e as Error).message);
@@ -247,9 +247,9 @@ function RoundEditor({ vote, round, reload, onStatus }: {
           <h3 className="font-semibold">轮次设置</h3>
           <div className="flex items-center gap-2">
             {round.status !== "active" ? (
-              <Button size="sm" onClick={() => onStatus(round, "active")}>开始投票</Button>
+              <Button size="sm" onClick={() => onStatus(round, "active")}>开始本轮</Button>
             ) : (
-              <Button size="sm" variant="secondary" onClick={() => onStatus(round, "paused")}>暂停</Button>
+              <Button size="sm" variant="secondary" onClick={() => onStatus(round, "paused")}>暂停本轮</Button>
             )}
             {round.status !== "finished" && <Button size="sm" variant="secondary" onClick={() => onStatus(round, "finished")}>结束本轮</Button>}
             <Button size="sm" variant="ghost" className="hover:text-red-500" onClick={() => setConfirmDel(true)}>删除轮次</Button>
@@ -398,14 +398,14 @@ function RoundEditor({ vote, round, reload, onStatus }: {
                   })}
                 />
               )}
-              {g.enabled && g.kind === "vote" && g.id && round.status === "pending" && (
+              {g.enabled && g.kind === "vote" && g.id && vote.status === "draft" && (
                 <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-3">
                   <Button type="button" variant="ghost" size="sm" className="hover:text-red-500"
                     disabled={g.voteEntryCount === 0 || clearingGroupId === g.id}
                     onClick={() => clearTestVotes(g, idx)}>
                     {clearingGroupId === g.id ? "清空中…" : `清空测试票（${g.voteEntryCount}）`}
                   </Button>
-                  <span className="text-xs text-ink-300">仅待开始可清空；不影响其他群体和评审绑定</span>
+                  <span className="text-xs text-ink-300">仅彩排活动可清空；不影响其他群体和评审绑定</span>
                 </div>
               )}
             </div>

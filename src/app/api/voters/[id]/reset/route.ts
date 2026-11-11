@@ -4,7 +4,7 @@ import { ok, fail, handleError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { rebuildGroupStats } from "@/lib/scoring";
 import { canAccess, voteOwnerByVoter } from "@/lib/ownership";
-import { isRoundDraft, roundDataLockedMessage } from "@/lib/round-lifecycle";
+import { canClearVoteData, voteDataLockedMessage } from "@/lib/vote-lifecycle";
 
 const resetSchema = z.object({ mode: z.enum(["binding", "full"]).optional() });
 
@@ -18,14 +18,14 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     if (!parsed.success) return fail("参数错误");
     const voter = await db.voter.findUnique({
       where: { id },
-      include: { group: { select: { round: { select: { status: true } } } } },
+      include: { group: { select: { round: { select: { vote: { select: { status: true } } } } } } },
     });
     if (!voter) return fail("评审不存在", 404);
     if (parsed.data.mode === "binding") {
       await db.voter.update({ where: { id }, data: { boundKey: null, boundAt: null } });
       return ok(true);
     }
-    if (!isRoundDraft(voter.group.round.status)) return fail(roundDataLockedMessage(voter.group.round.status), 409);
+    if (!canClearVoteData(voter.group.round.vote.status)) return fail(voteDataLockedMessage(voter.group.round.vote.status), 409);
     await db.$transaction([
       db.scoreEntry.deleteMany({ where: { voterId: id } }),
       db.voteEntry.deleteMany({ where: { groupId: voter.groupId, voterKey: `voter_${id}` } }),

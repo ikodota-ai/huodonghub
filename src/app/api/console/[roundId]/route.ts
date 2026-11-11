@@ -5,7 +5,7 @@ import { ok, fail, handleError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { publish, screenChannel } from "@/lib/sse";
 import { canAccess, voteOwnerByRound } from "@/lib/ownership";
-import { isRoundDraft, roundDataLockedMessage } from "@/lib/round-lifecycle";
+import { canClearVoteData, voteDataLockedMessage } from "@/lib/vote-lifecycle";
 
 const schema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("status"), status: z.enum(["pending", "active", "paused", "finished"]) }),
@@ -140,9 +140,9 @@ export async function POST(req: Request, { params }: { params: { roundId: string
       await db.voteRound.update({ where: { id: roundId }, data: { currentBatch: d.currentBatch } });
     } else if (d.action === "resetData") {
       // 彩排重置：清空本轮全部评分/投票流水与计数器，重置评委提交状态；保留配置、名单与绑定
-      const round = await db.voteRound.findUnique({ where: { id: roundId }, select: { status: true } });
+      const round = await db.voteRound.findUnique({ where: { id: roundId }, select: { vote: { select: { status: true } } } });
       if (!round) return fail("轮次不存在", 404);
-      if (!isRoundDraft(round.status)) return fail(roundDataLockedMessage(round.status), 409);
+      if (!canClearVoteData(round.vote.status)) return fail(voteDataLockedMessage(round.vote.status), 409);
       const groups = await db.voteGroup.findMany({ where: { roundId }, select: { id: true } });
       const groupIds = groups.map((g) => g.id);
       await db.$transaction([

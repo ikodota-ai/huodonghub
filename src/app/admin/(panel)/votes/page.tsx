@@ -17,8 +17,8 @@ const WX_MODE: Record<Vote["wxMode"], string> = {
 };
 
 const STATUS: Record<string, { label: string; tone: "gray" | "green" | "red" | "orange" }> = {
-  draft: { label: "草稿", tone: "gray" },
-  active: { label: "进行中", tone: "green" },
+  draft: { label: "彩排", tone: "gray" },
+  active: { label: "正式", tone: "green" },
   finished: { label: "已结束", tone: "orange" },
   archived: { label: "已归档", tone: "gray" },
 };

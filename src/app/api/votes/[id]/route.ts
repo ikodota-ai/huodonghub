@@ -4,6 +4,7 @@ import { ok, fail, handleError } from "@/lib/api";
 import { db } from "@/lib/db";
 import { getWxConfigFor, getWxGlobalConfig } from "@/lib/settings";
 import { canAccess } from "@/lib/ownership";
+import { canTransitionVoteStatus } from "@/lib/vote-lifecycle";
 
 type Ctx = { params: { id: string } };
 
@@ -81,13 +82,32 @@ export async function PUT(req: Request, { params }: Ctx) {
     const user = await requireUser();
     const parsed = updateSchema.safeParse(await req.json());
     if (!parsed.success) return fail("参数错误");
-    const vote = await db.vote.findUnique({ where: { id: BigInt(params.id) }, select: { ownerId: true } });
+    const voteId = BigInt(params.id);
+    const vote = await db.vote.findUnique({ where: { id: voteId }, select: { ownerId: true, status: true } });
     if (!vote || !canAccess(user, vote.ownerId)) return fail("投票不存在", 404);
-    const { screenBgEnabled, ...rest } = parsed.data;
-    await db.vote.update({
-      where: { id: BigInt(params.id) },
-      data: { ...rest, ...(screenBgEnabled === undefined ? {} : { screenBgEnabled: screenBgEnabled ? 1 : 0 }) },
+    const { screenBgEnabled, status, ...rest } = parsed.data;
+    const data = { ...rest, ...(screenBgEnabled === undefined ? {} : { screenBgEnabled: screenBgEnabled ? 1 : 0 }) };
+    if (status === undefined || status === vote.status) {
+      await db.vote.update({ where: { id: voteId }, data: { ...data, ...(status === undefined ? {} : { status }) } });
+      return ok(true);
+    }
+    if (!canTransitionVoteStatus(vote.status, status)) return fail("活动状态只能按彩排、正式、已结束、已归档顺序转换", 409);
+    const failure = await db.$transaction(async (tx) => {
+      const current = await tx.vote.findUnique({ where: { id: voteId }, select: { status: true, rounds: { select: { status: true } } } });
+      if (!current) return fail("投票不存在", 404);
+      if (current.status !== vote.status || !canTransitionVoteStatus(current.status, status)) return fail("活动状态已变更，请刷新后重试", 409);
+      if (status === "active") {
+        if (current.rounds.some((round) => round.status === "active")) return fail("请先暂停所有进行中轮次，再转为正式", 409);
+        const [scoreCount, voteCount] = await Promise.all([
+          tx.scoreEntry.count({ where: { group: { round: { voteId } } } }),
+          tx.voteEntry.count({ where: { group: { round: { voteId } } } }),
+        ]);
+        if (scoreCount > 0 || voteCount > 0) return fail(`仍有彩排数据：评分 ${scoreCount} 条、投票 ${voteCount} 条，请先清空各轮彩排数据`, 409);
+      }
+      await tx.vote.update({ where: { id: voteId }, data: { ...data, status } });
+      return null;
     });
+    if (failure) return failure;
     return ok(true);
   } catch (e) {
     return handleError(e);

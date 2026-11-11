@@ -1,12 +1,36 @@
 import { db } from "./db";
 
+type SettingCacheEntry = {
+  value: string | null;
+  expiresAt: number;
+  pending: Promise<string | null> | null;
+};
+
+const globalForSettings = globalThis as unknown as { __dthSettingCache?: Map<string, SettingCacheEntry> };
+const settingCache = globalForSettings.__dthSettingCache ?? new Map<string, SettingCacheEntry>();
+globalForSettings.__dthSettingCache = settingCache;
+const SETTING_CACHE_TTL_MS = 1000;
+
 export async function getSetting(key: string): Promise<string | null> {
-  const row = await db.setting.findUnique({ where: { key } });
-  return row?.value ?? null;
+  const cached = settingCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  if (cached?.pending) return cached.pending;
+  const entry: SettingCacheEntry = { value: null, expiresAt: 0, pending: null };
+  entry.pending = db.setting.findUnique({ where: { key } }).then((row) => {
+    const value = row?.value ?? null;
+    if (settingCache.get(key) === entry) {
+      entry.value = value;
+      entry.expiresAt = Date.now() + SETTING_CACHE_TTL_MS;
+    }
+    return value;
+  }).finally(() => { entry.pending = null; });
+  settingCache.set(key, entry);
+  return entry.pending;
 }
 
 export async function setSetting(key: string, value: string): Promise<void> {
   await db.setting.upsert({ where: { key }, update: { value }, create: { key, value } });
+  settingCache.delete(key);
 }
 
 export interface OssConfig {

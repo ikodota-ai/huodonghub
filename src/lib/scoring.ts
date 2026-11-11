@@ -76,6 +76,7 @@ export async function computeRoundResults(roundId: bigint): Promise<ContestantRe
   const batchVotersMap = new Map<string, Map<number, number>>(); // groupId -> batch -> 人数
   const roundVotersMap = new Map<string, number>(); // groupId -> 整轮独立投票人数（pctMode=round 时作分母）
   const voteAggMap = new Map<string, { byBatch: Map<number, { max: number; sum: number }>; round: { max: number; sum: number } }>(); // groupId -> 票数聚合
+  const allContestantsInRound = round.roundContestants.every((rc) => rc.batch === 0);
   for (const g of round.groups) {
     if (g.kind === "score") {
       const rows: { contestant_id: bigint; c: bigint }[] = await db.$queryRaw`
@@ -93,9 +94,13 @@ export async function computeRoundResults(roundId: bigint): Promise<ContestantRe
         GROUP BY rc.batch`;
       batchVotersMap.set(g.id.toString(), new Map(rows.map((r) => [Number(r.batch), Number(r.c)])));
       if (g.pctMode === "round") {
-        const rv: { c: bigint }[] = await db.$queryRaw`
-          SELECT COUNT(DISTINCT voter_key) AS c FROM vote_entries WHERE group_id = ${g.id}`;
-        roundVotersMap.set(g.id.toString(), Number(rv[0]?.c ?? 0));
+        if (allContestantsInRound) {
+          roundVotersMap.set(g.id.toString(), batchVotersMap.get(g.id.toString())?.get(0) ?? 0);
+        } else {
+          const rv: { c: bigint }[] = await db.$queryRaw`
+            SELECT COUNT(DISTINCT voter_key) AS c FROM vote_entries WHERE group_id = ${g.id}`;
+          roundVotersMap.set(g.id.toString(), Number(rv[0]?.c ?? 0));
+        }
       }
       // 票数聚合：top/share 计分口径的分母（范围内最高票/总票数）
       const byBatch = new Map<number, { max: number; sum: number }>();

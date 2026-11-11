@@ -32,7 +32,7 @@ export default function Dashboard() {
 
   const stats = [
     { label: "视频分组", value: data.groupCount, sub: `${data.videoCount} 个视频 · ${fmtBytes(data.videoBytes)}` },
-    { label: "进行中的投票", value: data.activeVoteCount, sub: `${data.activeRoundCount} 个轮次投票中` },
+    { label: "正式投票活动", value: data.activeVoteCount, sub: `${data.activeRoundCount} 个轮次投票中` },
     { label: "媒体存储", value: fmtBytes(data.mediaBytes), sub: "本地媒体目录" },
   ];
 
@@ -97,7 +97,7 @@ export default function Dashboard() {
                 <span className="text-sm font-medium">{v.name}</span>
                 <span className="flex items-center gap-2 text-xs text-ink-300">
                   {v.roundCount} 轮次
-                  <Badge tone={v.status === "active" ? "green" : "gray"}>{{ draft: "草稿", active: "进行中", finished: "已结束", archived: "已归档" }[v.status]}</Badge>
+                  <Badge tone={v.status === "active" ? "green" : "gray"}>{{ draft: "彩排", active: "正式", finished: "已结束", archived: "已归档" }[v.status]}</Badge>
                 </span>
               </Link>
             ))}

@@ -7,6 +7,7 @@ import { api, getFp, contestantImg } from "@/lib/client";
 interface VotePageData {
   voteId: string;
   voteName: string;
+  voteStatus: string;
   cover: string | null;
   roundName: string;
   currentBatch: number;
@@ -70,7 +71,8 @@ export default function AudienceVotePage() {
   if (!data) return <Center><div className="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin" /></Center>;
 
   const phaseText: Record<string, string> = { pending: "投票未开始", paused: "投票已暂停", finished: "投票已结束" };
-  const active = data.phase === "active" && data.group;
+  const voteClosed = data.voteStatus === "finished" || data.voteStatus === "archived";
+  const active = !voteClosed && data.phase === "active" && data.group;
   const countdown = data.countdownEndsAt ? Math.max(0, Math.floor((new Date(data.countdownEndsAt).getTime() - now) / 1000)) : null;
   const remaining = data.group ? data.group.maxVotes - data.group.used : 0;
 
@@ -96,7 +98,7 @@ export default function AudienceVotePage() {
             )}
           </div>
         ) : (
-          <div className="mt-2 bg-ink-100 text-ink-500 text-sm rounded-lg px-3 py-2">{phaseText[data.phase] ?? "投票未开放"}</div>
+          <div className="mt-2 bg-ink-100 text-ink-500 text-sm rounded-lg px-3 py-2">{voteClosed ? "活动已结束" : phaseText[data.phase] ?? "投票未开放"}</div>
         )}
       </div>
 

@@ -11,7 +11,7 @@ import { buildScoreItemDetails } from "@/lib/score-item-details";
 interface JudgeData {
   voteId: string;
   roundId: string; groupId: string;
-  voteName: string; roundName: string; roundStatus: string; groupName: string;
+  voteName: string; voteStatus: string; roundName: string; roundStatus: string; groupName: string;
   kind: "score" | "vote"; maxScore: number; maxVotes: number; allowRepeat: number;
   scoreMode: ScoreMode; criteria: CriterionConfig[];
   voterName: string; needBind: boolean; wxConfigured: boolean; hasVoted: boolean;
@@ -66,7 +66,7 @@ export default function JudgePage() {
 
   // 需要绑定时：有微信授权 cookie 或指纹 → 自动完成绑定
   useEffect(() => {
-    if (!data?.needBind) return;
+    if (!data?.needBind || data.voteStatus === "finished" || data.voteStatus === "archived") return;
     if (data.wxConfigured && isWechat() && !document.cookie.includes(`wx_openid_${data.voteId}`)) {
       location.href = `/api/wx/${data.voteId}/auth?next=${encodeURIComponent(`/judge/${token}`)}`;
       return;
@@ -99,6 +99,17 @@ export default function JudgePage() {
 
   const batchMode = data.batches.length > 0;
   const allSubmitted = batchMode && data.batches.every((b) => data.submittedBatches.includes(b));
+
+  if (data.voteStatus === "finished" || data.voteStatus === "archived") {
+    return (
+      <Center>
+        <div className="text-center">
+          <h1 className="text-lg font-bold">{data.voteName} · {data.roundName}</h1>
+          <p className="text-ink-500 mt-3">活动已结束</p>
+        </div>
+      </Center>
+    );
+  }
 
   if (data.currentBatchSubmitted || doneBatch === data.currentBatch) {
     const submittedRows = data.submitted

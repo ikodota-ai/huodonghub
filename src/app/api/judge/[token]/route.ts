@@ -6,6 +6,7 @@ import { publish, screenChannel } from "@/lib/sse";
 import { wxOpenidFromCookies } from "@/lib/wx-openid";
 import { getWxConfigFor } from "@/lib/settings";
 import { computeScoreTotal, ScoreMode, validateCriteria, validateCriterionItems } from "@/lib/score-criteria";
+import { voteAcceptsSubmissions } from "@/lib/vote-lifecycle";
 
 type Ctx = { params: { token: string } };
 
@@ -65,6 +66,7 @@ export async function GET(_req: Request, { params }: Ctx) {
       roundId: round.id.toString(),
       groupId: group.id.toString(),
       voteName: round.vote.name,
+      voteStatus: round.vote.status,
       roundName: round.name,
       roundStatus: round.status,
       groupName: group.name,
@@ -115,6 +117,9 @@ export async function POST(req: Request, { params }: Ctx) {
     if (!voter) return fail("评分码无效", 404);
     const { group } = voter;
     const { round } = group;
+    if (!voteAcceptsSubmissions(round.vote.status)) {
+      return fail(round.vote.status === "archived" ? "活动已归档，禁止继续提交" : "活动已结束，禁止继续提交", 403);
+    }
     if (round.status !== "active") return fail("当前轮次不在评分时间", 403);
 
     const parsed = submitSchema.safeParse(await req.json());

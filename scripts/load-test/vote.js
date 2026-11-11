@@ -29,14 +29,13 @@ const SECONDS = durationSeconds(DURATION);
 if (SECONDS <= 0) throw new Error("DURATION 必须大于 0");
 if (!Number.isSafeInteger(MAX_VUS) || MAX_VUS <= 0 || MAX_VUS > USERS) throw new Error("MAX_VUS 必须是 1 到 USERS 之间的正整数");
 if (ARRIVAL_MODE && USERS % SECONDS !== 0) throw new Error("到达模式要求 USERS 能被 DURATION 秒数整除");
+if (ARRIVAL_MODE && USERS % MAX_VUS !== 0) throw new Error("精确到达模式要求 USERS 能被 MAX_VUS 整除");
 
 const audienceScenario = ARRIVAL_MODE ? {
-  executor: "constant-arrival-rate",
-  rate: USERS / SECONDS,
-  timeUnit: "1s",
-  duration: DURATION,
-  preAllocatedVUs: MAX_VUS,
-  maxVUs: MAX_VUS,
+  executor: "per-vu-iterations",
+  vus: MAX_VUS,
+  iterations: USERS / MAX_VUS,
+  maxDuration: `${SECONDS + 90}s`,
   gracefulStop: "15s",
 } : {
   executor: "per-vu-iterations",
@@ -53,7 +52,6 @@ const thresholds = {
   audience_get_duration: ["p(95)<1000", "p(99)<2000"],
 };
 if (ARRIVAL_MODE) {
-  thresholds.dropped_iterations = ["count==0"];
   thresholds.iterations = [`count==${USERS}`];
 }
 
@@ -64,6 +62,8 @@ export const options = {
   thresholds,
   tags: { run_id: RUN_ID },
 };
+
+const VU_STARTED_AT = Date.now();
 
 const HEADERS = { "User-Agent": "HuodongLoadTest/1.0", Accept: "*/*" };
 const businessFailures = new Counter("business_failures");
@@ -93,7 +93,11 @@ function logFailure(stage, response, fingerprint) {
 }
 
 export default function () {
-  if (!ARRIVAL_MODE) sleep((__VU - 1) * SECONDS / USERS);
+  if (ARRIVAL_MODE) {
+    const slot = __ITER * MAX_VUS + __VU - 1;
+    const waitMs = VU_STARTED_AT + slot * SECONDS * 1000 / USERS - Date.now();
+    if (waitMs > 0) sleep(waitMs / 1000);
+  } else sleep((__VU - 1) * SECONDS / USERS);
   const startedAt = Date.now();
   const fingerprint = `${RUN_ID}-${__VU}-${__ITER}`;
   if (!API_ONLY) {

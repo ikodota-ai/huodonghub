@@ -65,24 +65,24 @@ export function ConsoleTab({ vote, reload }: { vote: VoteDetail; reload: () => v
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
             {round.status !== "active" ? (
-              <Button onClick={() => action({ action: "status", status: "active" })}>▶ 开始投票</Button>
+              <Button onClick={() => action({ action: "status", status: "active" })}>▶ 开始本轮</Button>
             ) : (
-              <Button variant="secondary" onClick={() => action({ action: "status", status: "paused" })}>⏸ 暂停投票</Button>
+              <Button variant="secondary" onClick={() => action({ action: "status", status: "paused" })}>⏸ 暂停本轮</Button>
             )}
             <Button variant="secondary" disabled={round.status === "finished"} onClick={() => action({ action: "status", status: "finished" })}>⏹ 结束本轮</Button>
             <span title={
-              round.status !== "pending" ? "轮次已开始，进行中、暂停和结束状态均不可清分"
-              : "清空本轮全部评分与投票数据（彩排后重置）"
+              vote.status !== "draft" ? "仅彩排活动可清空数据"
+              : "建议先暂停本轮；清空全部评分与投票，保留配置、名单和绑定"
             }>
-              <Button variant="ghost" className="hover:text-red-500" disabled={round.status !== "pending"} onClick={async () => {
-                if (!(await confirm(`清空「${round.name}」的全部评分与投票数据？\n保留轮次配置、选手名单与评审绑定（用于彩排后重置）。\n清空后不可恢复。`, { title: "清空本轮数据", confirmText: "确认清空", danger: true }))) return;
+              <Button variant="ghost" className="hover:text-red-500" disabled={vote.status !== "draft"} onClick={async () => {
+                if (!(await confirm(`清空「${round.name}」的全部彩排评分与投票数据？\n保留轮次配置、选手名单、评审名单、二维码和绑定。\n清空后不可恢复。`, { title: "清空彩排数据", confirmText: "确认清空", danger: true }))) return;
                 try {
                   await action({ action: "resetData" });
-                  toast("已清空本轮数据");
+                  toast("已清空本轮彩排数据");
                 } catch (e) {
                   toast((e as Error).message);
                 }
-              }}>清空数据</Button>
+              }}>清空彩排数据</Button>
             </span>
           </div>
 

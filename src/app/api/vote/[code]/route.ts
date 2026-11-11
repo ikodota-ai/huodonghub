@@ -6,20 +6,19 @@ import { publish, screenChannel } from "@/lib/sse";
 import { wxOpenidFromCookies } from "@/lib/wx-openid";
 import { getSetting, getWxConfigFor } from "@/lib/settings";
 import { chinaDayStart } from "@/lib/day";
+import { voteAcceptsSubmissions } from "@/lib/vote-lifecycle";
 
 type Ctx = { params: { code: string } };
 
 // 同 IP 软限流：默认每群体每 IP 10 分钟 60 票（可在 settings 表 vote.ipLimit 覆盖：{"windowMin":10,"max":60}）
 // 注意不能收太紧：活动现场同 WiFi 出口 NAT 下数百观众共享一个公网 IP
-async function ipThrottleHit(groupId: bigint, ip: string): Promise<boolean> {
+async function ipThrottleConfig(): Promise<{ windowMin: number; max: number }> {
   let windowMin = 10, max = 60;
   try {
     const raw = await getSetting("vote.ipLimit");
     if (raw) { const j = JSON.parse(raw); if (j.windowMin > 0) windowMin = j.windowMin; if (j.max > 0) max = j.max; }
   } catch {}
-  const since = new Date(Date.now() - windowMin * 60 * 1000);
-  const count = await db.voteEntry.count({ where: { groupId, ip, createdAt: { gte: since } } });
-  return count >= max;
+  return { windowMin, max };
 }
 
 async function loadRound(code: string) {
@@ -67,6 +66,7 @@ export async function GET(req: Request, { params }: Ctx) {
     return ok({
       voteId: round.voteId.toString(),
       voteName: round.vote.name,
+      voteStatus: round.vote.status,
       cover: round.vote.cover,
       roundName: round.name,
       currentBatch,
@@ -98,6 +98,7 @@ const castSchema = z.object({ contestantId: z.coerce.bigint(), fp: z.string().ma
 type PostContext = {
   round_id: bigint;
   vote_id: bigint;
+  vote_status: string;
   status: string;
   audience_start_at: Date | null;
   audience_end_at: Date | null;
@@ -109,15 +110,23 @@ type PostContext = {
   contestant_batch: number | null;
 };
 
+type PostPrecheckRow = {
+  row_type: "entry" | "throttle";
+  contestant_id: bigint | null;
+  created_at: Date | null;
+  ip_count: bigint | number | null;
+};
+
 export async function POST(req: Request, { params }: Ctx) {
   try {
     const parsed = castSchema.safeParse(await req.json());
     if (!parsed.success) return fail("参数错误");
     const contestantId = parsed.data.contestantId;
     const rows = await db.$queryRaw<PostContext[]>`
-      SELECT r.id AS round_id, r.vote_id, r.status, r.audience_start_at, r.audience_end_at, r.current_batch,
+      SELECT r.id AS round_id, r.vote_id, v.status AS vote_status, r.status, r.audience_start_at, r.audience_end_at, r.current_batch,
         g.id AS group_id, g.max_votes, g.allow_repeat, g.vote_period, rc.batch AS contestant_batch
       FROM vote_rounds r
+      JOIN votes v ON v.id = r.vote_id
       LEFT JOIN vote_groups g ON g.round_id = r.id AND g.kind = 'vote' AND g.restricted = 0
       LEFT JOIN round_contestants rc ON rc.round_id = r.id AND rc.contestant_id = ${contestantId}
       WHERE r.code = ${params.code}
@@ -126,6 +135,9 @@ export async function POST(req: Request, { params }: Ctx) {
     `;
     const context = rows[0];
     if (!context) return fail("投票链接无效", 404);
+    if (!voteAcceptsSubmissions(context.vote_status)) {
+      return fail(context.vote_status === "archived" ? "活动已归档，禁止继续投票" : "活动已结束，禁止继续投票", 403);
+    }
     if (roundPhase({ status: context.status, audienceStartAt: context.audience_start_at, audienceEndAt: context.audience_end_at }) !== "active") {
       return fail("当前不在投票时间", 403);
     }
@@ -147,17 +159,37 @@ export async function POST(req: Request, { params }: Ctx) {
     }
 
     const ip = clientIp();
-    if (await ipThrottleHit(group.id, ip)) return fail("当前网络投票过于频繁，请稍后再试", 429);
+    const throttle = await ipThrottleConfig();
+    const throttleSince = new Date(Date.now() - throttle.windowMin * 60 * 1000);
 
     // 限票周期：daily=只统计今天的票（跨天自动重置配额与"不可重复投同一选手"）
     const dayStart = group.votePeriod === "daily" ? chinaDayStart() : null;
-    const scopedEntries = await db.$queryRaw<{ contestant_id: bigint; created_at: Date }[]>`
-      SELECT ve.contestant_id, ve.created_at
-      FROM vote_entries ve
-      JOIN round_contestants rc ON rc.round_id = ${context.round_id} AND rc.contestant_id = ve.contestant_id
-      WHERE ve.group_id = ${group.id} AND ve.voter_key = ${voterKey}
-        AND (${currentBatch} = 0 OR rc.batch = ${currentBatch})
-    `;
+    const precheckRows: PostPrecheckRow[] = currentBatch > 0
+      ? await db.$queryRaw`
+        SELECT 'entry' AS row_type, ve.contestant_id, ve.created_at, NULL AS ip_count
+        FROM vote_entries ve
+        JOIN round_contestants rc ON rc.round_id = ${context.round_id} AND rc.contestant_id = ve.contestant_id
+        WHERE ve.group_id = ${group.id} AND ve.voter_key = ${voterKey}
+          AND rc.batch = ${currentBatch}
+        UNION ALL
+        SELECT 'throttle' AS row_type, NULL AS contestant_id, NULL AS created_at, COUNT(*) AS ip_count
+        FROM vote_entries
+        WHERE group_id = ${group.id} AND ip = ${ip} AND created_at >= ${throttleSince}
+      `
+      : await db.$queryRaw`
+        SELECT 'entry' AS row_type, contestant_id, created_at, NULL AS ip_count
+        FROM vote_entries
+        WHERE group_id = ${group.id} AND voter_key = ${voterKey}
+        UNION ALL
+        SELECT 'throttle' AS row_type, NULL AS contestant_id, NULL AS created_at, COUNT(*) AS ip_count
+        FROM vote_entries
+        WHERE group_id = ${group.id} AND ip = ${ip} AND created_at >= ${throttleSince}
+      `;
+    const ipCount = Number(precheckRows.find((row) => row.row_type === "throttle")?.ip_count ?? 0);
+    if (ipCount >= throttle.max) return fail("当前网络投票过于频繁，请稍后再试", 429);
+    const scopedEntries = precheckRows.filter((row) => row.row_type === "entry").map((row) => ({
+      contestant_id: row.contestant_id!, created_at: row.created_at!,
+    }));
     const usedEntries = scopedEntries.filter((entry) => !dayStart || entry.created_at >= dayStart);
     if (usedEntries.length >= group.maxVotes) {
       return fail(group.votePeriod === "daily"

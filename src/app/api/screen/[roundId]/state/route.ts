@@ -14,6 +14,7 @@ export async function GET(_req: Request, { params }: { params: { roundId: string
     const currentBatch = round.currentBatch;
     const batches = [...new Set(round.roundContestants.map((rc) => rc.batch).filter((b) => b > 0))].sort((a, b) => a - b);
     const results = currentBatch > 0 ? allResults.filter((r) => r.batch === currentBatch) : allResults;
+    const allContestantsInRound = round.roundContestants.every((rc) => rc.batch === 0);
     // 大屏排序规则：total=按得分降序（computeRoundResults 已排好）；number=按编号；seq=按出场顺序
     if (round.screenSortMode === "number") {
       results.sort((a, b) => {
@@ -42,6 +43,10 @@ export async function GET(_req: Request, { params }: { params: { roundId: string
         const total = await db.voter.count({ where: { groupId: g.id } });
         const done = await db.voter.count({ where: { groupId: g.id, hasVoted: 1 } });
         return { groupId: g.id.toString(), done, total };
+      }
+      if (currentBatch === 0 && (g.pctMode === "round" || allContestantsInRound)) {
+        const detail = allResults[0]?.groups.find((item) => item.groupId === g.id);
+        if (detail) return { groupId: g.id.toString(), done: detail.participants, total: 0 };
       }
       const rows: { c: bigint }[] = currentBatch > 0
         ? await db.$queryRaw`
