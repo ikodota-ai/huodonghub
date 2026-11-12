@@ -44,7 +44,8 @@ export async function GET(req: Request, { params }: Ctx) {
   try {
     const round = await loadRound(params.code);
     if (!round) return fail("投票链接无效", 404);
-    const group = round.groups[0] ?? null;
+    const group = round.groups.find((item) => item.id === round.screenGroupId) ?? null;
+    const phase = roundPhase(round);
     const batchOf = new Map(round.roundContestants.map((rc) => [rc.contestantId.toString(), rc.batch]));
     const batches = [...new Set(round.roundContestants.map((rc) => rc.batch).filter((b) => b > 0))].sort((a, b) => a - b);
     const currentBatch = round.currentBatch;
@@ -71,7 +72,7 @@ export async function GET(req: Request, { params }: Ctx) {
       roundName: round.name,
       currentBatch,
       batches,
-      phase: roundPhase(round),
+      phase: phase === "active" && !group ? "paused" : phase,
       countdownEndsAt: round.countdownEndsAt,
       audienceShowResult: round.audienceShowResult === 1,
       wxConfigured: !!(await getWxConfigFor(round.vote)),
@@ -128,6 +129,7 @@ export async function POST(req: Request, { params }: Ctx) {
       FROM vote_rounds r
       JOIN votes v ON v.id = r.vote_id
       LEFT JOIN vote_groups g ON g.round_id = r.id AND g.kind = 'vote' AND g.restricted = 0
+        AND g.id = r.screen_group_id
       LEFT JOIN round_contestants rc ON rc.round_id = r.id AND rc.contestant_id = ${contestantId}
       WHERE r.code = ${params.code}
       ORDER BY g.sort ASC

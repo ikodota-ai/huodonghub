@@ -119,6 +119,7 @@ async function create() {
     await db.roundContestant.createMany({
       data: vote.contestants.map((contestant, index) => ({ roundId: round.id, contestantId: contestant.id, seq: index + 1, batch: 0 })),
     });
+    await db.voteRound.update({ where: { id: round.id }, data: { screenGroupId: group.id } });
     await db.setting.upsert({ where: { key: THROTTLE_KEY }, update: { value: THROTTLE_VALUE }, create: { key: THROTTLE_KEY, value: THROTTLE_VALUE } });
 
     const fixture = {

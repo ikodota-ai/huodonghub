@@ -30,7 +30,7 @@
 LOAD_TEST_ACK=YES node scripts/load-test/fixture.js create
 ```
 
-该命令创建 12 名压测选手和“每人 3 票、不可重复投同一人”的开放观众轮次，并写入 `output/load-test/fixture.json`。它会临时调高 `vote.ipLimit`，但投票接口仍执行原有 IP 统计查询。
+该命令创建 12 名压测选手和“每人 3 票、不可重复投同一人”的开放观众轮次，将新观众组写入轮次 `screenGroupId` 作为当前开放组，并写入 `output/load-test/fixture.json`，无需再到控制台手工切换。它会临时调高 `vote.ipLimit`，但投票接口仍执行原有 IP 统计查询；观众 POST 仍在原单次上下文查询的 JOIN 中校验选中组，不增加高频数据库往返。
 
 元数据已存在时会拒绝重复创建，防止覆盖上一场尚未清理的测试。
 

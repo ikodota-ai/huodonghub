@@ -69,6 +69,7 @@
 | status | varchar(16) | pending / active / finished |
 | code | varchar(16) | 观众入口短码，/vote/{code} |
 | audience_start_at / audience_end_at | datetime | 观众投票起止，可空（手动开关优先） |
+| screen_group_id | bigint FK，可空 | 当前大屏展示且唯一允许提交的群体；空值表示总分并关闭所有提交 |
 | screen_show_result | tinyint | 大屏是否显示结果数值 |
 | screen_show_part | tinyint | 大屏是否显示实时参与率 |
 | screen_show_axis | tinyint | 大屏是否显示 Y 轴数值、刻度、轴线及横向刻度线，默认 1 |

@@ -152,9 +152,9 @@ export function ConsoleTab({ vote, reload }: { vote: VoteDetail; reload: () => v
           )}
 
           <div className="border-t border-ink-100 pt-4">
-            <p className="text-sm font-medium mb-3">大屏显示内容</p>
+            <p className="text-sm font-medium mb-3">当前开放群体（同步大屏显示）</p>
             <div className="space-y-2">
-              {[{ id: null as string | null, name: "总分" }, ...round.groups.map((g) => ({ id: g.id as string | null, name: g.name }))].map((opt) => (
+              {[{ id: null as string | null, name: "总分（关闭所有提交）" }, ...round.groups.map((g) => ({ id: g.id as string | null, name: g.name }))].map((opt) => (
                 <label key={opt.id ?? "total"} className="flex items-center gap-2 text-sm">
                   <input
                     type="radio"
@@ -166,6 +166,7 @@ export function ConsoleTab({ vote, reload }: { vote: VoteDetail; reload: () => v
                 </label>
               ))}
             </div>
+            <p className="text-xs text-ink-300 mt-2">切换后立即影响页面和 API：仅选中的群体可评分/投票；选择总分将关闭所有提交。</p>
           </div>
 
           <div className="border-t border-ink-100 pt-4 space-y-3">

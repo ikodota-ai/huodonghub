@@ -11,7 +11,7 @@ import { buildScoreItemDetails } from "@/lib/score-item-details";
 interface JudgeData {
   voteId: string;
   roundId: string; groupId: string;
-  voteName: string; voteStatus: string; roundName: string; roundStatus: string; groupName: string;
+  voteName: string; voteStatus: string; roundName: string; roundStatus: string; submissionOpen: boolean; groupName: string;
   kind: "score" | "vote"; maxScore: number; maxVotes: number; allowRepeat: number;
   scoreMode: ScoreMode; criteria: CriterionConfig[];
   voterName: string; needBind: boolean; wxConfigured: boolean; hasVoted: boolean;
@@ -187,6 +187,17 @@ export default function JudgePage() {
           <Spinner />
           <p className="text-sm text-ink-500 mt-4">正在绑定您的身份…</p>
           {bindMsg && <p className="text-sm text-red-500 mt-2">{bindMsg}</p>}
+        </div>
+      </Center>
+    );
+  }
+
+  if (data.roundStatus === "active" && !data.submissionOpen) {
+    return (
+      <Center>
+        <div className="text-center">
+          <h1 className="text-lg font-bold">{data.voteName} · {data.roundName}</h1>
+          <p className="text-ink-500 mt-3">当前未开放本群体评分/投票</p>
         </div>
       </Center>
     );

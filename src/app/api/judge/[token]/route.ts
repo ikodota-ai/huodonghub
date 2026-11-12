@@ -7,6 +7,7 @@ import { wxOpenidFromCookies } from "@/lib/wx-openid";
 import { getWxConfigFor } from "@/lib/settings";
 import { computeScoreTotal, ScoreMode, validateCriteria, validateCriterionItems } from "@/lib/score-criteria";
 import { voteAcceptsSubmissions } from "@/lib/vote-lifecycle";
+import { groupAcceptsSubmissions } from "@/lib/group-submission";
 
 type Ctx = { params: { token: string } };
 
@@ -69,6 +70,12 @@ export async function GET(_req: Request, { params }: Ctx) {
       voteStatus: round.vote.status,
       roundName: round.name,
       roundStatus: round.status,
+      submissionOpen: groupAcceptsSubmissions({
+        voteStatus: round.vote.status,
+        roundStatus: round.status,
+        screenGroupId: round.screenGroupId,
+        groupId: group.id,
+      }),
       groupName: group.name,
       kind: group.kind,
       scoreMode: group.scoreMode,
@@ -121,6 +128,14 @@ export async function POST(req: Request, { params }: Ctx) {
       return fail(round.vote.status === "archived" ? "活动已归档，禁止继续提交" : "活动已结束，禁止继续提交", 403);
     }
     if (round.status !== "active") return fail("当前轮次不在评分时间", 403);
+    if (!groupAcceptsSubmissions({
+      voteStatus: round.vote.status,
+      roundStatus: round.status,
+      screenGroupId: round.screenGroupId,
+      groupId: group.id,
+    })) {
+      return fail("当前未开放本群体评分/投票", 403);
+    }
 
     const parsed = submitSchema.safeParse(await req.json());
     if (!parsed.success) return fail("参数错误");
